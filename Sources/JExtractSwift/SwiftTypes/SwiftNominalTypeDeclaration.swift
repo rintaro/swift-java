@@ -14,6 +14,10 @@
 
 import SwiftSyntax
 
+///// A syntax node for a nominal type declaration.
+@_spi(Testing)
+public typealias NominalTypeDeclSyntaxNode = any DeclGroupSyntax & NamedDeclSyntax & WithAttributesSyntax & WithModifiersSyntax
+
 /// Describes a nominal type declaration, which can be of any kind (class, struct, etc.)
 /// and has a name, parent type (if nested), and owning module.
 class SwiftNominalTypeDeclaration {
@@ -78,6 +82,14 @@ class SwiftNominalTypeDeclaration {
     }
 
     return KnownStandardLibraryType(typeNameInSwiftModule: name)
+  }
+
+  var qualifiedName: String {
+    if let parent = self.parent {
+      return parent.qualifiedName + "." + name
+    } else {
+      return name
+    }
   }
 }
 

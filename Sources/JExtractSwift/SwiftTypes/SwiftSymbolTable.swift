@@ -49,7 +49,7 @@ class SwiftSymbolTable {
     importedModules.append(symbolTable)
   }
 
-  func addTopLevelNominalTypeDeclarations(_ sourceFile: SourceFileSyntax) {
+  func addNominalTypeDeclarations(_ sourceFile: SourceFileSyntax) {
     // Find top-level nominal type declarations.
     for statement in sourceFile.statements {
       // We only care about declarations.
@@ -59,24 +59,6 @@ class SwiftSymbolTable {
       }
 
       parsedModule.addNominalTypeDeclaration(nominalTypeNode, parent: nil)
-    }
-  }
-
-  func addExtensions(
-    _ sourceFile: SourceFileSyntax,
-    nominalResolution: NominalTypeResolution
-  ) {
-    // Find extensions.
-    for statement in sourceFile.statements {
-      // We only care about declarations.
-      guard case .decl(let decl) = statement.item,
-          let extNode = decl.as(ExtensionDeclSyntax.self),
-            let extendedTypeNode = nominalResolution.extendedType(of: extNode),
-            let extendedTypeDecl = parsedModule.nominalTypeDeclarations[extendedTypeNode.id] else {
-        continue
-      }
-
-      parsedModule.addExtension(extNode, extending: extendedTypeDecl)
     }
   }
 }
