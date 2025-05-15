@@ -69,6 +69,13 @@ extension ConversionStep {
             break
           }
         }
+        switch knownType {
+        case .string:
+          self = .initialize(swiftType, arguments: [.init(label: "cString", argument: .placeholder)])
+          return
+        default:
+          break
+        }
       }
 
       // Arbitrary nominal types.

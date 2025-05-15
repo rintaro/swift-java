@@ -34,6 +34,7 @@ enum KnownStandardLibraryType: String, Hashable, CaseIterable {
   case unsafeMutablePointer = "UnsafeMutablePointer"
   case unsafeBufferPointer = "UnsafeBufferPointer"
   case unsafeMutableBufferPointer = "UnsafeMutableBufferPointer"
+  case string = "String"
 
   var typeName: String { rawValue }
 
@@ -46,7 +47,7 @@ enum KnownStandardLibraryType: String, Hashable, CaseIterable {
     switch self {
     case .bool, .double, .float, .int, .int8, .int16, .int32, .int64,
         .uint, .uint8, .uint16, .uint32, .uint64, .unsafeRawPointer,
-        .unsafeMutableRawPointer:
+        .unsafeMutableRawPointer, .string:
       false
 
     case .unsafePointer, .unsafeMutablePointer, .unsafeBufferPointer,

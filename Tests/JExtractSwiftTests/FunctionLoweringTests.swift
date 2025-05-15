@@ -41,12 +41,28 @@ final class FunctionLoweringTests {
       """,
       expectedCDecl: """
       @_cdecl("c_f")
-      public func c_f(_ t_0: Int, _ t_1_0: Float, _ t_1_1: Double, _ z_pointer: UnsafeRawPointer) -> Int {
-        return f(t: (t_0, (t_1_0, t_1_1)), z: z_pointer.assumingMemoryBound(to: Int.self))
+      public func c_f(_ t_0: Int, _ t_1_0: Float, _ t_1_1: Double, _ z: UnsafePointer<Int>) -> Int {
+        return f(t: (t_0, (t_1_0, t_1_1)), z: z)
       }
       """,
-      expectedCFunction: "ptrdiff_t c_f(ptrdiff_t t_0, float t_1_0, double t_1_1, const void *z_pointer)"
+      expectedCFunction: "ptrdiff_t c_f(ptrdiff_t t_0, float t_1_0, double t_1_1, const ptrdiff_t *z)"
     )
+  }
+
+  @Test("Lowering String") func loweringString() throws {
+    try assertLoweredFunction(
+      """
+      func takeString(str: String) {}
+      """,
+      expectedCDecl: """
+      @_cdecl("c_takeString")
+      public func c_takeString(_ str: UnsafePointer<Int8>) {
+        takeString(str: String(cString: str))
+      }
+      """,
+      expectedCFunction: """
+      void c_takeString(const int8_t *str)
+      """)
   }
 
   @Test("Lowering functions involving inout")

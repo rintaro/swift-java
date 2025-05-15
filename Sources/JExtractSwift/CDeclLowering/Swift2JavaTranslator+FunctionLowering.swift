@@ -242,6 +242,23 @@ extension Swift2JavaTranslator {
             ]
           )
         }
+
+        // 'String' is passed in by C string. i.e. 'UnsafePointer<Int8>' ('const uint8_t *')
+        if knownType == .string {
+          return LoweredParameters(
+            cdeclParameters: [
+              SwiftParameter(
+                convention: convention,
+                parameterName: parameterName,
+                type: .nominal(SwiftNominalType(
+                  nominalTypeDecl: swiftStdlibTypes.unsafePointerDecl,
+                  genericArguments: [
+                    .nominal(SwiftNominalType(nominalTypeDecl: swiftStdlibTypes[.int8]))
+                  ]))
+              )
+            ]
+          )
+        }
       }
 
       // Arbitrary types are lowered to raw pointers that either "are" the
