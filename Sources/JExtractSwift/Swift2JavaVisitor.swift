@@ -16,6 +16,67 @@ import Foundation
 import SwiftParser
 import SwiftSyntax
 
+//final class Swift2JavaTranslateVisitor {
+//  func translate(decl node: DeclSyntax, into typeContext: ImportedNominalType?) {
+//    switch node.as(DeclSyntaxEnum.self) {
+//
+//    case .structDecl(let node):
+//      self.translate(nominalTypeDecl: node, into: typeContext)
+//    case .enumDecl(let node):
+//      self.translate(nominalTypeDecl: node, into: typeContext)
+//    case .classDecl(let node):
+//      self.translate(nominalTypeDecl: node, into: typeContext)
+//    case .actorDecl(let node):
+//      self.translate(nominalTypeDecl: node, into: typeContext)
+//    case .protocolDecl(let node):
+//      self.translate(nominalTypeDecl: node, into: typeContext)
+//    case .extensionDecl(let node):
+//      self.translate(extensionDecl: node, into: typeContext)
+//
+//    case .functionDecl(let node):
+//      self.translate(functionDecl: node, into: typeContext)
+//    case .subscriptDecl(let node):
+//      self.translate(subscriptDecl: node, into: typeContext)
+//    case .variableDecl(let node):
+//      self.translate(variableDecl: node, into: typeContext)
+//    }
+//  }
+//
+//  func translate(sourceFile node: SourceFileSyntax) {
+//    for code in node.statements {
+//      guard let decl = code.item.as(DeclSyntax.self) else {
+//        return
+//      }
+//      self.translate(decl: decl, into: nil)
+//    }
+//  }
+//
+//  func translate(nominalTypeDecl node: some NamedDeclSyntax & DeclGroupSyntax & WithAttributesSyntax & WithModifiersSyntax, into typeContext: ImportedNominalType?) {
+//    guard let importedNominal = translator.importedNominalType(node, typeContext) else {
+//      return
+//    }
+//    for member in node.memberBlock.members {
+//      self.translate(decl: member.decl, into: importedNominal)
+//    }
+//  }
+//
+//  func translate(extensionDecl node: ExtensionDeclSyntax, into typeContext: ImportedNominalType?) throws {
+//    guard typeContext == nil else {
+//      return
+//    }
+//  }
+//
+//  func translate(functionDecl node: FunctionDeclSyntax, into typeContext: ImportedNominalType?) throws {
+//    self.translator.importedFunc(node, typeContext)
+//  }
+//  func translate(subscriptDecl node: SubscriptDeclSyntax, into typeContext: ImportedNominalType?) throws {
+//    SwiftFunctionSignature(node, enclosingType: <#T##SwiftType?#>, symbolTable: SwiftSymbolTable)
+//  }
+//  func translate(variableDecl node: VariableDeclSyntax, into typeContext: ImportedNominalType?) throws {
+//    SwiftFunctionSignature(node, enclosingType: <#T##SwiftType?#>, symbolTable: SwiftSymbolTable)
+//  }
+//}
+
 final class Swift2JavaVisitor: SyntaxVisitor {
   let translator: Swift2JavaTranslator
 
@@ -31,6 +92,11 @@ final class Swift2JavaVisitor: SyntaxVisitor {
 
   /// Innermost type context.
   var currentType: ImportedNominalType? { typeContext.last?.type }
+
+  var currentSwiftType: SwiftType? {
+    guard let currentType else { return nil }
+    return .nominal(SwiftNominalType(nominalTypeDecl: currentType.swiftNominal))
+  }
 
   /// The current type name as a nested name like A.B.C.
   var currentTypeName: String? { self.currentType?.swiftNominal.qualifiedName }
@@ -116,6 +182,15 @@ final class Swift2JavaVisitor: SyntaxVisitor {
 
     self.log.debug("Import function: \(node.kind) \(node.name)")
 
+    guard let swiftSignature = try? SwiftFunctionSignature(
+      node,
+      enclosingType: currentSwiftType,
+      symbolTable: translator.symbolTable
+    ) else {
+      
+      return .skipChildren
+    }
+
     let returnTy: TypeSyntax
     if let returnClause = node.signature.returnClause {
       returnTy = returnClause.type
@@ -149,7 +224,8 @@ final class Swift2JavaVisitor: SyntaxVisitor {
       parent: currentTypeName.map { translator.importedTypes[$0] }??.translatedType,
       identifier: fullName,
       returnType: javaResultType,
-      parameters: params
+      parameters: params,
+      swiftFuncSignature: swiftSignature
     )
 
     if let currentTypeName {
@@ -226,6 +302,15 @@ final class Swift2JavaVisitor: SyntaxVisitor {
     }
 
     self.log.debug("Import initializer: \(node.kind) '\(node.qualifiedNameForDebug)'")
+
+    guard let swiftSignature = try? SwiftFunctionSignature(
+      node,
+      enclosingType: self.currentSwiftType,
+      symbolTable: self.translator.symbolTable
+    ) else {
+      return .skipChildren
+    }
+
     let params: [ImportedParam]
     do {
       params = try node.signature.parameterClause.parameters.map { param in
@@ -250,7 +335,8 @@ final class Swift2JavaVisitor: SyntaxVisitor {
       parent: currentType.translatedType,
       identifier: initIdentifier,
       returnType: currentType.translatedType,
-      parameters: params
+      parameters: params,
+      swiftFuncSignature: swiftSignature
     )
     funcDecl.isInit = true
 

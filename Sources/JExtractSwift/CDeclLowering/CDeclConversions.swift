@@ -175,11 +175,12 @@ extension ConversionStep {
       case .actor, .class:
         // For actor and class, we pass around the pointer directly. Case to
         // the unsafe raw pointer type we use to represent it in C.
+        // Retain the value so it lives after returning.
         self = .unsafeCastPointer(
-          .placeholder,
+          .retain(.placeholder),
           swiftType: .nominal(
             SwiftNominalType(
-              nominalTypeDecl: stdlibTypes[.unsafeRawPointer]
+              nominalTypeDecl: stdlibTypes[.unsafeMutableRawPointer]
             )
           )
         )

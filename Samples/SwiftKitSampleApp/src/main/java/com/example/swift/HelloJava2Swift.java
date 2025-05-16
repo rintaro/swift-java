@@ -40,6 +40,9 @@ public class HelloJava2Swift {
 
         MySwiftLibrary.globalTakeInt(1337);
 
+        long cnt =  MySwiftLibrary.globalWriteString("String from Java");
+        System.out.println("count = " + cnt);
+
         // Example of using an arena; MyClass.deinit is run at end of scope
         try (var arena = SwiftArena.ofConfined()) {
              MySwiftClass obj = new MySwiftClass(arena, 2222, 7777);

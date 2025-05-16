@@ -39,6 +39,10 @@ enum SwiftType: Equatable {
   var isVoid: Bool {
     return self == .tuple([])
   }
+
+  static var void: Self {
+    return .tuple([])
+  }
 }
 
 extension SwiftType: CustomStringConvertible {
@@ -83,7 +87,7 @@ struct SwiftNominalType: Equatable {
     nominalTypeDecl: SwiftNominalTypeDeclaration,
     genericArguments: [SwiftType]? = nil
   ) {
-    self.storedParent = parent.map { .nominal($0) }
+    self.storedParent = parent.map { .nominal($0) } ?? nominalTypeDecl.parent.map { .nominal(SwiftNominalType(nominalTypeDecl: $0)) }
     self.nominalTypeDecl = nominalTypeDecl
     self.genericArguments = genericArguments
   }
@@ -229,6 +233,27 @@ extension SwiftType {
         parent: parent?.asNominalType,
         nominalTypeDecl: nominalTypeDecl,
         genericArguments: genericArguments
+      )
+    )
+  }
+
+  init?(
+    nominalDecl: NamedDeclSyntax & DeclGroupSyntax,
+    parent: SwiftType?,
+    symbolTable: SwiftSymbolTable
+  ) {
+    guard let nominalTypeDecl = symbolTable.lookupType(
+      nominalDecl.name.text,
+      parent: parent?.asNominalTypeDeclaration
+    ) else {
+      return nil
+    }
+
+    self = .nominal(
+      SwiftNominalType(
+        parent: parent?.asNominalType,
+        nominalTypeDecl: nominalTypeDecl,
+        genericArguments: nil
       )
     )
   }

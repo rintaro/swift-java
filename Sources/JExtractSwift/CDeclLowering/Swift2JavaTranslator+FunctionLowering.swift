@@ -156,7 +156,7 @@ extension Swift2JavaTranslator {
     parameterName: String
   ) throws -> LoweredParameters {
     // If there is a 1:1 mapping between this Swift type and a C type, we just
-    // need to add the corresponding C [arameter.
+    // need to add the corresponding C parameter.
     if let cType = try? CType(cdeclType: type), convention != .inout {
       _ = cType
       return LoweredParameters(
@@ -440,7 +440,7 @@ extension LoweredFunctionSignature {
 
       var bodyItems: [CodeBlockItemSyntax] = []
 
-      // If the are multiple places in the result conversion that reference
+      // If there are multiple places in the result conversion that reference
       // the placeholder, capture the result of the call in a local variable.
       // This prevents us from calling the function multiple times.
       let originalResult: ExprSyntax
@@ -550,3 +550,4 @@ extension ConversionStep {
     return [ "  \(selfExpr) = \(otherExpr)" ]
   }
 }
+

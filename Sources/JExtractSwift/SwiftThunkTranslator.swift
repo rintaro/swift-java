@@ -87,6 +87,13 @@ struct SwiftThunkTranslator {
     let thunkName = self.st.thunkNameRegistry.functionThunkName(
       module: st.swiftModuleName, decl: function)
 
+    if let swiftSignature = function.swiftSignature {
+      if let loweredSignature = try? st.lowerFunctionSignature(swiftSignature) {
+        let thunkFunc = loweredSignature.cdeclThunk(cName: thunkName, swiftFunctionName: parent.swiftTypeName, stdlibTypes: st.swiftStdlibTypes)
+        return [DeclSyntax(thunkFunc)]
+      }
+    }
+
     let cDecl =
       """
       @_cdecl("\(thunkName)")
@@ -124,6 +131,13 @@ struct SwiftThunkTranslator {
   func render(forFunc decl: ImportedFunc) -> [DeclSyntax] {
     st.log.trace("Rendering thunks for: \(decl.baseIdentifier)")
     let thunkName = st.thunkNameRegistry.functionThunkName(module: st.swiftModuleName, decl: decl)
+
+    if let swiftSignature = decl.swiftSignature {
+      if let loweredSignature = try? st.lowerFunctionSignature(swiftSignature) {
+        let thunkFunc = loweredSignature.cdeclThunk(cName: thunkName, swiftFunctionName: decl.baseIdentifier, stdlibTypes: st.swiftStdlibTypes)
+        return [DeclSyntax(thunkFunc)]
+      }
+    }
 
     let returnArrowTy =
       if decl.returnType.cCompatibleJavaMemoryLayout == .primitive(.void) {

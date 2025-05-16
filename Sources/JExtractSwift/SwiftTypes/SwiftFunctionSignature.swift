@@ -17,7 +17,6 @@ import SwiftSyntaxBuilder
 
 /// Provides a complete signature for a Swift function, which includes its
 /// parameters and return type.
-@_spi(Testing)
 public struct SwiftFunctionSignature: Equatable {
   var selfParameter: SwiftSelfParameter?
   var parameters: [SwiftParameter]
@@ -136,7 +135,7 @@ extension SwiftFunctionSignature {
         type: SwiftType(resultType, symbolTable: symbolTable)
       )
     } else {
-      self.result = SwiftResult(convention: .direct, type: .tuple([]))
+      self.result = .void
     }
 
     // Prohibit generics for now.
@@ -163,6 +162,28 @@ extension SwiftFunctionSignature {
       try SwiftParameter(param, symbolTable: symbolTable)
     }
   }
+
+  init(_ node: AccessorDeclSyntax, varNode: VariableDeclSyntax, enclosingType: SwiftType?, symbolTable: SwiftSymbolTable) throws {
+    guard let binding = varNode.bindings.first, varNode.bindings.count == 1 else {
+      throw SwiftFunctionTranslationError.multipleBindings(varNode)
+    }
+
+    guard let varTypeNode = binding.typeAnnotation?.type else {
+      throw SwiftFunctionTranslationError.missingTypeAnnotation(varNode)
+    }
+    let varType = try SwiftType(varTypeNode, symbolTable: symbolTable)
+
+    switch node.accessorSpecifier {
+    case .keyword(.set):
+      self.parameters = [SwiftParameter(convention: .byValue, parameterName: "newValue", type: varType)]
+      self.result = .void
+    case .keyword(.get):
+      self.parameters = []
+      self.result = .init(convention: .direct, type: varType)
+    default:
+      throw SwiftFunctionTranslationError.unsupportedAccessor(node)
+    }
+  }
 }
 
 enum SwiftFunctionTranslationError: Error {
@@ -172,4 +193,7 @@ enum SwiftFunctionTranslationError: Error {
   case classMethod(TokenSyntax)
   case missingEnclosingType(InitializerDeclSyntax)
   case failableInitializer(InitializerDeclSyntax)
+  case multipleBindings(VariableDeclSyntax)
+  case missingTypeAnnotation(VariableDeclSyntax)
+  case unsupportedAccessor(AccessorDeclSyntax)
 }

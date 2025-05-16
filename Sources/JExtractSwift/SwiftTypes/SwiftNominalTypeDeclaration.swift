@@ -29,6 +29,19 @@ class SwiftNominalTypeDeclaration {
     case `struct`
   }
 
+  enum AccessLevel {
+    case `private`
+    case `fileprivate`
+    case `internal`
+    case `package`
+    case `public`
+    case `open`
+  }
+
+  /// The syntax node this declaration is derived from.
+  /// Can be `nil` if this is loaded from a .swiftmodule.
+  var syntax: NominalTypeDeclSyntaxNode?
+
   /// The kind of nominal type.
   var kind: Kind
 
@@ -43,6 +56,8 @@ class SwiftNominalTypeDeclaration {
 
   /// The name of this nominal type, e.g., 'MyCollection'.
   var name: String
+
+  var accessLevel: AccessLevel?
 
   // TODO: Generic parameters.
 
@@ -71,6 +86,18 @@ class SwiftNominalTypeDeclaration {
     case .protocolDecl: self.kind = .protocol
     case .structDecl: self.kind = .struct
     default: fatalError("Not a nominal type declaration")
+    }
+
+    // Determine the declared access level from the syntax node.
+    switch node.accessControlModifiers.first?.name.tokenKind {
+    case .keyword(.private): self.accessLevel = .private
+    case .keyword(.fileprivate): self.accessLevel = .fileprivate
+    case .keyword(.internal): self.accessLevel = .internal
+    case .keyword(.package): self.accessLevel = .package
+    case .keyword(.public): self.accessLevel = .public
+    case .keyword(.open): self.accessLevel = .open
+    case nil: self.accessLevel = nil
+    default: fatalError("unhandled access control modifier '\(node.accessControlModifiers.first!)'")
     }
   }
 

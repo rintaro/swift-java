@@ -13,6 +13,7 @@
 //===----------------------------------------------------------------------===//
 
 import SwiftSyntax
+import SwiftSyntaxBuilder
 
 /// Describes the transformation needed to take the parameters of a thunk
 /// and map them to the corresponding parameter (or result value) of the
@@ -50,6 +51,9 @@ enum ConversionStep: Equatable {
   /// elements, recursively. Note that this always produces unlabeled
   /// tuples, which Swift will convert to the labeled tuple form.
   case tuplify([ConversionStep])
+
+  /// Retain the value.
+  indirect case retain(ConversionStep)
 
   /// Create an initialization step that produces the raw pointer type that
   /// corresponds to the typed pointer.
@@ -90,7 +94,8 @@ enum ConversionStep: Equatable {
     case .explodedComponent(let inner, component: _),
         .passIndirectly(let inner), .pointee(let inner),
         .typedPointer(let inner, swiftType: _),
-        .unsafeCastPointer(let inner, swiftType: _):
+        .unsafeCastPointer(let inner, swiftType: _),
+        .retain(let inner):
       inner.placeholderCount
     case .initialize(_, arguments: let arguments):
       arguments.reduce(0) { $0 + $1.argument.placeholderCount }
@@ -128,29 +133,26 @@ enum ConversionStep: Equatable {
       return isSelf ? innerExpr : "&\(innerExpr)"
 
     case .initialize(let type, arguments: let arguments):
-      let renderedArguments: [String] = arguments.map { labeledArgument in
-        let renderedArg = labeledArgument.argument.asExprSyntax(isSelf: false, placeholder: placeholder)
-        if let argmentLabel = labeledArgument.label {
-          return "\(argmentLabel): \(renderedArg.description)"
-        } else {
-          return renderedArg.description
+      let args = LabeledExprListSyntax {
+        for arg in arguments {
+          let argExpr = arg.argument.asExprSyntax(isSelf: false, placeholder: placeholder)
+          LabeledExprSyntax(label: arg.label, expression: argExpr)
         }
       }
-
-      // FIXME: Should be able to use structured initializers here instead
-      // of splatting out text.
-      let renderedArgumentList = renderedArguments.joined(separator: ", ")
-      return "\(raw: type.description)(\(raw: renderedArgumentList))"
+      return "\(raw: type.description)(\(args))"
 
     case .tuplify(let elements):
-      let renderedElements: [String] = elements.enumerated().map { (index, element) in
-        element.asExprSyntax(isSelf: false, placeholder: "\(placeholder)_\(index)").description
+      let tuple = TupleExprSyntax {
+        for (index, element) in elements.enumerated() {
+          let elemExpr = element.asExprSyntax(isSelf: false, placeholder: "\(placeholder)_\(index)")
+          LabeledExprSyntax(expression: elemExpr)
+        }
       }
+      return ExprSyntax(tuple)
 
-      // FIXME: Should be able to use structured initializers here instead
-      // of splatting out text.
-      let renderedElementList = renderedElements.joined(separator: ", ")
-      return "(\(raw: renderedElementList))"
+    case .retain(let step):
+      let inner = step.asExprSyntax(isSelf: false, placeholder: placeholder)
+      return "Unmanaged.passRetained(\(inner)).takeUnretainedValue()"
     }
   }
 }

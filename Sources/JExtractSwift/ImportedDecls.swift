@@ -215,6 +215,8 @@ public struct ImportedFunc: ImportedDecl, CustomStringConvertible {
     return identifier
   }
 
+  var swiftSignature: SwiftFunctionSignature?
+
   public var returnType: TranslatedType
   public var parameters: [ImportedParam]
 
@@ -277,7 +279,8 @@ public struct ImportedFunc: ImportedDecl, CustomStringConvertible {
     parent: TranslatedType?,
     identifier: String,
     returnType: TranslatedType,
-    parameters: [ImportedParam]
+    parameters: [ImportedParam],
+    swiftFuncSignature: SwiftFunctionSignature? = nil
   ) {
     self.swiftDecl = decl
     self.module = module
@@ -285,6 +288,7 @@ public struct ImportedFunc: ImportedDecl, CustomStringConvertible {
     self.identifier = identifier
     self.returnType = returnType
     self.parameters = parameters
+    self.swiftSignature = swiftFuncSignature
   }
 
   public var description: String {
