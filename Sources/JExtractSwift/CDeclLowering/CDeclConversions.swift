@@ -26,9 +26,6 @@ extension ConversionStep {
     }
 
     switch swiftType {
-    case .function, .optional:
-      throw LoweringError.unhandledType(swiftType)
-
     case .metatype(let instanceType):
       self = .unsafeCastPointer(
         .placeholder,
@@ -93,6 +90,14 @@ extension ConversionStep {
 
     case .tuple(let elements):
       self = .tuplify(try elements.map { try ConversionStep(cdeclToSwift: $0) })
+
+    case .function(let fn) where fn.parameters.isEmpty && fn.resultType == .void:
+      // '@convention(c) () -> ()' is compatible with '@convention(swift) () -> Void'.
+      self = .placeholder
+
+    case .function, .optional:
+      // FIXME: Support other function types than '() -> Void'.
+      throw LoweringError.unhandledType(swiftType)
     }
   }
 

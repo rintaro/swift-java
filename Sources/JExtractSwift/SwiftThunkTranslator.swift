@@ -94,6 +94,7 @@ struct SwiftThunkTranslator {
       }
     }
 
+    fatalError("unsupported")
     let cDecl =
       """
       @_cdecl("\(thunkName)")
@@ -139,6 +140,7 @@ struct SwiftThunkTranslator {
       }
     }
 
+    fatalError("unsupported \(decl)")
     let returnArrowTy =
       if decl.returnType.cCompatibleJavaMemoryLayout == .primitive(.void) {
         "/* \(decl.returnType.swiftTypeName) */"

@@ -172,9 +172,6 @@ extension Swift2JavaTranslator {
     }
 
     switch type {
-    case .function, .optional:
-      throw LoweringError.unhandledType(type)
-
     case .metatype:
       return LoweredParameters(
         cdeclParameters: [
@@ -267,8 +264,9 @@ extension Swift2JavaTranslator {
         case .actor, .class: true
         case .enum, .protocol, .struct: false
       }
+      let isReferenceType = (nominal.nominalTypeDecl.kind == .class || nominal.nominalTypeDecl.kind == .actor)
 
-      let isMutable = (convention == .inout)
+      let isMutable = (convention == .inout || isReferenceType)
       return LoweredParameters(
         cdeclParameters: [
           SwiftParameter(
@@ -294,6 +292,19 @@ extension Swift2JavaTranslator {
       return LoweredParameters(
         cdeclParameters: loweredElements.flatMap { $0.cdeclParameters }
       )
+
+    case .function(let fn) where fn.parameters.isEmpty && fn.resultType == .void:
+      return LoweredParameters(cdeclParameters: [
+        SwiftParameter(
+          convention: .byValue,
+          parameterName: parameterName,
+          type: .function(SwiftFunctionType(convention: .c, parameters: [], resultType: .void))
+        )
+      ])
+
+    case .function, .optional:
+      // FIXME: Support other function types than '() -> Void'.
+      throw LoweringError.unhandledType(type)
     }
   }
 
