@@ -37,7 +37,14 @@ enum SwiftType: Equatable {
   /// Whether this is the "Void" type, which is actually an empty
   /// tuple.
   var isVoid: Bool {
-    return self == .tuple([])
+    switch self {
+    case .tuple([]):
+      return true
+    case .nominal(let nominal):
+      return nominal.parent == nil && nominal.nominalTypeDecl.moduleName == "Swift" && nominal.nominalTypeDecl.name == "Void"
+    default:
+      return false
+    }
   }
 
   static var void: Self {

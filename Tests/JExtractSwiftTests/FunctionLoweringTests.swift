@@ -313,6 +313,21 @@ final class FunctionLoweringTests {
     )
   }
 
+  @Test("Lowering () -> Void type")
+  func lowerSimpleClosureTypes() throws {
+    try assertLoweredFunction("""
+      func doSomething(body: () -> Void) { }
+      """,
+      expectedCDecl: """
+      @_cdecl("c_doSomething")
+      public func c_doSomething(_ body: @convention(c) () -> Void) {
+        doSomething(body: body)
+      }
+      """,
+      expectedCFunction: "void c_doSomething(void (*body)(void))"
+    )
+  }
+
   @Test("Lowering C function types")
   func lowerFunctionTypes() throws {
     // FIXME: C pretty printing isn't handling parameters of function pointer

@@ -121,6 +121,7 @@ extension KnownStandardLibraryType {
     case .unsafeRawPointer: .pointer(
       .qualified(const: true, volatile: false, type: .void)
     )
+    case .void: .void
     case .unsafePointer, .unsafeMutablePointer, .unsafeBufferPointer, .unsafeMutableBufferPointer, .string:
        nil
     }

@@ -41,7 +41,12 @@ public class HelloJava2Swift {
         MySwiftLibrary.globalTakeInt(1337);
 
         long cnt =  MySwiftLibrary.globalWriteString("String from Java");
-        System.out.println("count = " + cnt);
+
+        SwiftKit.trace("count = " + cnt);
+
+        MySwiftLibrary.globalCallMeRunnable(() -> {
+            SwiftKit.trace("running runnable");
+        });
 
         // Example of using an arena; MyClass.deinit is run at end of scope
         try (var arena = SwiftArena.ofConfined()) {

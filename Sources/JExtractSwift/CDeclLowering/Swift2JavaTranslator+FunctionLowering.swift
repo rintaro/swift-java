@@ -293,12 +293,12 @@ extension Swift2JavaTranslator {
         cdeclParameters: loweredElements.flatMap { $0.cdeclParameters }
       )
 
-    case .function(let fn) where fn.parameters.isEmpty && fn.resultType == .void:
+    case .function(let fn) where fn.parameters.isEmpty && fn.resultType.isVoid:
       return LoweredParameters(cdeclParameters: [
         SwiftParameter(
           convention: .byValue,
           parameterName: parameterName,
-          type: .function(SwiftFunctionType(convention: .c, parameters: [], resultType: .void))
+          type: .function(SwiftFunctionType(convention: .c, parameters: [], resultType: fn.resultType))
         )
       ])
 

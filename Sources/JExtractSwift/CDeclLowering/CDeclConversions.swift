@@ -91,7 +91,7 @@ extension ConversionStep {
     case .tuple(let elements):
       self = .tuplify(try elements.map { try ConversionStep(cdeclToSwift: $0) })
 
-    case .function(let fn) where fn.parameters.isEmpty && fn.resultType == .void:
+    case .function(let fn) where fn.parameters.isEmpty && fn.resultType.isVoid:
       // '@convention(c) () -> ()' is compatible with '@convention(swift) () -> Void'.
       self = .placeholder
 
