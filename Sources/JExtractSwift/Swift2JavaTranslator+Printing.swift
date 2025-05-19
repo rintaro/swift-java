@@ -1052,9 +1052,35 @@ extension Swift2JavaTranslator {
     let fieldName = accessorKind.renderDescFieldName
     printer.start("public static final FunctionDescriptor \(fieldName) = ")
 
+    if let swiftSignature = decl.swiftSignature {
+      if let loweredSignature = try? lowerFunctionSignature(swiftSignature) {
+        if let cFunc = try? CFunction(cdeclSignature: loweredSignature.cdecl, cName: thunkNameRegistry.functionThunkName(module: swiftModuleName, decl: decl)) {
+          if cFunc.resultType.isVoid {
+            printer.print("FunctionDescriptor.ofVoid(")
+            printer.indent()
+          } else {
+            printer.print("FunctionDescriptor.of(")
+            printer.indent()
+            var returnDesc = cFunc.resultType.foreignValueLayout
+            printer.print("/* -> */", .continue)
+            printer.print(returnDesc, .parameterNewlineSeparator(cFunc.parameters.isEmpty))
+          }
+
+          for (param, isLast) in cFunc.parameters.withIsLast {
+            printer.print("/* \(param.name ?? "_"): */", .continue)
+            printer.print(param.type.foreignValueLayout, .parameterNewlineSeparator(isLast))
+          }
+
+          printer.outdent()
+          printer.print(");")
+          return
+        }
+      }
+    }
+
     let isIndirectReturn = decl.isIndirectReturn
 
-    var parameterLayoutDescriptors: [ForeignValueLayout] = javaMemoryLayoutDescriptors(
+    let parameterLayoutDescriptors: [ForeignValueLayout] = javaMemoryLayoutDescriptors(
       forParametersOf: decl,
       paramPassingStyle: .pointer
     )
@@ -1103,4 +1129,43 @@ extension Swift2JavaTranslator {
       """)
   }
 
+}
+
+extension CType {
+  var foreignValueLayout: ForeignValueLayout {
+    switch self {
+    case .floating(.double):
+      return .SwiftDouble
+    case .floating(.float):
+      return .SwiftFloat
+    case .integral(.bool):
+      return .SwiftBool
+    case .integral(.ptrdiff_t), .integral(.size_t):
+      return .SwiftInt
+    case .integral(.signed(bits: 8)):
+      return .SwiftInt8
+    case .integral(.signed(bits: 16)):
+      return .SwiftInt16
+    case .integral(.signed(bits: 32)):
+      return .SwiftInt32
+    case .integral(.signed(bits: 64)):
+      return .SwiftInt64
+    case .integral(.unsigned(bits: 8)):
+      return .SwiftInt8
+    case .integral(.unsigned(bits: 16)):
+      return .SwiftInt16
+    case .integral(.unsigned(bits: 32)):
+      return .SwiftInt8
+    case .integral(.unsigned(bits: 64)):
+      return .SwiftInt64
+    case .pointer(_), .function(resultType: _, parameters: _, variadic: _):
+      return .SwiftPointer
+    case .qualified(const: _, volatile: _, type: let inner):
+      return inner.foreignValueLayout
+    case .tag(_):
+      fatalError("unsupported")
+    case .void, .integral(.signed(bits: _)),  .integral(.unsigned(bits: _)):
+      fatalError("unreachable")
+    }
+  }
 }
