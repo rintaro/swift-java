@@ -506,7 +506,7 @@ extension LoweredFunctionSignature {
       } else {
         ExprSyntax(DeclReferenceExprSyntax(baseName: .identifier(swiftFunctionName)))
       }
-      return ExprSyntax(FunctionCallExprSyntax(calledExpression: callee) {
+      return ExprSyntax(FunctionCallExprSyntax(calledExpression: callee, leftParen: .leftParenToken(), rightParen: .rightParenToken()) {
         for (i, argument) in arguments.enumerated() {
           LabeledExprSyntax(label: original.parameters[i].argumentLabel, expression: argument)
         }
@@ -577,8 +577,6 @@ extension Swift2JavaTranslator {
     enclosingType: TypeSyntax? = nil,
     kind: VariableAccessorKind,
   ) throws -> LoweredVariableAccessor {
-    let binding = decl.bindings.first!
-
     let enclosingType: SwiftType? = if let enclosingType {
       try SwiftType(enclosingType, symbolTable: self.symbolTable)
     } else {

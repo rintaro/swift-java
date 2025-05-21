@@ -42,6 +42,8 @@ public final class Swift2JavaTranslator {
 
   // ==== Output state
 
+  package var importedGlobalVariables: [ImportedVariable] = []
+
   package var importedGlobalFuncs: [ImportedFunc] = []
 
   /// A mapping from Swift type names (e.g., A.B) over to the imported nominal

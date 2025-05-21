@@ -20,10 +20,12 @@ final class MethodThunkTests {
     """
     import Swift
 
+    public var globalVar: MyClass = MyClass()
     public func globalFunc(a: Int32, b: Int64) {}
     public func globalFunc(a: Double, b: Int64) {}
     
     public class MyClass {
+      public var property: Int
       public init(arg: Int32) {}
     }
     """
@@ -42,15 +44,27 @@ final class MethodThunkTests {
       expectedChunks:
       [
         """
+        @_cdecl("swiftjava_FakeModule_globalVar$get")
+        public func swiftjava_FakeModule_globalVar$get() -> UnsafeMutableRawPointer {
+          return unsafeBitCast(Unmanaged.passRetained(globalVar).takeUnretainedValue(), to: UnsafeMutableRawPointer.self)
+        }
+        """,
+        """
+        @_cdecl("swiftjava_FakeModule_globalVar$set")
+        public func swiftjava_FakeModule_globalVar$set(_ newValue: UnsafeMutableRawPointer) {
+          globalVar = unsafeBitCast(newValue, to: MyClass.self)
+        }
+        """,
+        """
         @_cdecl("swiftjava_FakeModule_globalFunc_a_b")
         public func swiftjava_FakeModule_globalFunc_a_b(_ a: Int32, _ b: Int64) {
-          globalFunc(a: a, b: b)
+          globalFunc(a: a,b: b)
         }
         """,
         """
         @_cdecl("swiftjava_FakeModule_globalFunc_a_b$1")
         public func swiftjava_FakeModule_globalFunc_a_b$1(_ a: Double, _ b: Int64) {
-          globalFunc(a: a, b: b)
+          globalFunc(a: a,b: b)
         }
         """,
         """
@@ -58,10 +72,23 @@ final class MethodThunkTests {
         public func swiftjava_getType_FakeModule_MyClass() -> UnsafeMutableRawPointer /* Any.Type */ {
           return unsafeBitCast(MyClass.self, to: UnsafeMutableRawPointer.self)
         }
-
+        """,
+        """
         @_cdecl("swiftjava_FakeModule_MyClass_init_arg")
         public func swiftjava_FakeModule_MyClass_init_arg(_ arg: Int32) -> UnsafeMutableRawPointer {
           return unsafeBitCast(Unmanaged.passRetained(MyClass(arg: arg)).takeUnretainedValue(), to: UnsafeMutableRawPointer.self)
+        }
+        """,
+        """
+        @_cdecl("swiftjava_FakeModule_MyClass_property$get")
+        public func swiftjava_FakeModule_MyClass_property$get(_ self: UnsafeMutableRawPointer) -> Int {
+          return unsafeBitCast(self, to: MyClass.self).property
+        }
+        """,
+        """
+        @_cdecl("swiftjava_FakeModule_MyClass_property$set")
+        public func swiftjava_FakeModule_MyClass_property$set(_ newValue: Int, _ self: UnsafeMutableRawPointer) {
+          unsafeBitCast(self, to: MyClass.self).property = newValue
         }
         """
       ]

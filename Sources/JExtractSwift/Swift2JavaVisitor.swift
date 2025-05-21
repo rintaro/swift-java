@@ -285,7 +285,7 @@ final class Swift2JavaVisitor: SyntaxVisitor {
       log.debug("Record variable in \(currentTypeName)")
       translator.importedTypes[currentTypeName]!.variables.append(varDecl)
     } else {
-      fatalError("Global variables are not supported yet: \(node.qualifiedNameForDebug)")
+      translator.importedGlobalVariables.append(varDecl)
     }
 
     return .skipChildren

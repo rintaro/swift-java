@@ -61,7 +61,7 @@ final class FunctionDescriptorTests {
         expected:
           """
           public static final FunctionDescriptor DESC = FunctionDescriptor.ofVoid(
-            /*i*/SWIFT_INT
+            /* i: */SWIFT_INT
           );
           """
       )
@@ -76,8 +76,8 @@ final class FunctionDescriptorTests {
         expected:
           """
           public static final FunctionDescriptor DESC = FunctionDescriptor.ofVoid(
-            /*l*/SWIFT_INT64,
-            /*i32*/SWIFT_INT32
+            /* l: */SWIFT_INT64,
+            /* i32: */SWIFT_INT32
           );
           """
       )
@@ -93,7 +93,7 @@ final class FunctionDescriptorTests {
           """
           public static final FunctionDescriptor DESC = FunctionDescriptor.of(
             /* -> */SWIFT_INT,
-            /*i*/SWIFT_INT
+            /* i: */SWIFT_INT
           );
           """
       )
