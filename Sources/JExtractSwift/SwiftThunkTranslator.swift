@@ -46,6 +46,10 @@ struct SwiftThunkTranslator {
       decls.append(contentsOf: renderSwiftInitAccessor(decl))
     }
 
+    for decl in nominal.variables {
+      decls.append(contentsOf: render(forVariable: decl))
+    }
+
     for decl in nominal.methods {
       decls.append(contentsOf: render(forFunc: decl))
     }
@@ -127,6 +131,28 @@ struct SwiftThunkTranslator {
         """
       ]
     }
+  }
+
+  func render(forVariable decl: ImportedVariable) -> [DeclSyntax] {
+    st.log.trace("Rendering thunks for: \(decl.identifier)")
+    var thunkFuncs: [DeclSyntax] = []
+
+    // Getter.
+    if let loweredVariable = try? st.lowerVariableAccessor(decl.syntax, kind: .get) {
+
+      let thunkName = st.thunkNameRegistry.variableThunkName(module: st.swiftModuleName, decl: decl, accessorKind: .get)
+      let thunkFunc = loweredVariable.cdeclThunk(cName: thunkName, swiftVariableName: decl.identifier, stdlibTypes: st.swiftStdlibTypes)
+      thunkFuncs.append(DeclSyntax(thunkFunc))
+    }
+
+    // Setter.
+    if let loweredVariable = try? st.lowerVariableAccessor(decl.syntax, kind: .set) {
+      let thunkName = st.thunkNameRegistry.variableThunkName(module: st.swiftModuleName, decl: decl, accessorKind: .set)
+      let thunkFunc = loweredVariable.cdeclThunk(cName: thunkName, swiftVariableName: decl.identifier, stdlibTypes: st.swiftStdlibTypes)
+      thunkFuncs.append(DeclSyntax(thunkFunc))
+    }
+
+    return thunkFuncs
   }
 
   func render(forFunc decl: ImportedFunc) -> [DeclSyntax] {

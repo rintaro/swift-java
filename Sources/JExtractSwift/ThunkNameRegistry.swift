@@ -24,6 +24,24 @@ package struct ThunkNameRegistry {
 
   package init() {}
 
+  package mutating func variableThunkName(
+    module: String, decl: ImportedVariable, accessorKind: VariableAccessorKind,
+    file: String = #fileID, line: UInt = #line
+  ) -> String {
+    let kindPart = switch accessorKind {
+    case .set: "set"
+    case .get: "get"
+    }
+
+    let name = if let parent = decl.parentName {
+      "swiftjava_\(module)_\(parent.swiftTypeName)_\(decl.identifier)$\(kindPart)"
+    } else {
+      "swiftjava_\(module)_\(decl.identifier)$\(kindPart)"
+    }
+
+    return name
+  }
+
   package mutating func functionThunkName(
     module: String, decl: ImportedFunc,
     file: String = #fileID, line: UInt = #line) -> String {

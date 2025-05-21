@@ -376,7 +376,7 @@ public struct ImportedVariable: ImportedDecl, CustomStringConvertible {
         "_ newValue: \(self.returnType.cCompatibleSwiftType)"
       let funcDecl = ImportedFunc(
         module: self.module,
-        decl: self.syntax!,
+        decl: self.syntax,
         parent: self.parentName,
         identifier: self.identifier,
         returnType: TranslatedType.void,
@@ -386,7 +386,7 @@ public struct ImportedVariable: ImportedDecl, CustomStringConvertible {
     case .get:
       let funcDecl = ImportedFunc(
         module: self.module,
-        decl: self.syntax!,
+        decl: self.syntax,
         parent: self.parentName,
         identifier: self.identifier,
         returnType: self.returnType,
@@ -447,18 +447,20 @@ public struct ImportedVariable: ImportedDecl, CustomStringConvertible {
 
   public var swiftMangledName: String = ""
 
-  public var syntax: VariableDeclSyntax? = nil
+  public var syntax: VariableDeclSyntax
 
   public init(
     module: String,
     parentName: TranslatedType?,
     identifier: String,
-    returnType: TranslatedType
+    returnType: TranslatedType,
+    syntax: VariableDeclSyntax
   ) {
     self.module = module
     self.parentName = parentName
     self.identifier = identifier
     self.returnType = returnType
+    self.syntax = syntax
   }
 
   public var description: String {
@@ -470,7 +472,7 @@ public struct ImportedVariable: ImportedDecl, CustomStringConvertible {
 
     Swift mangled name:
       Imported from:
-      \(syntax?.description ?? "<no swift source>")
+      \(syntax.description)
     }
     """
   }

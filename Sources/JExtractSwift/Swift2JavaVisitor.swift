@@ -272,9 +272,9 @@ final class Swift2JavaVisitor: SyntaxVisitor {
       module: self.translator.swiftModuleName,
       parentName: currentTypeName.map { translator.importedTypes[$0] }??.translatedType,
       identifier: fullName,
-      returnType: javaResultType
+      returnType: javaResultType,
+      syntax: node
     )
-    varDecl.syntax = node.trimmed
 
     // Retrieve the mangled name, if available.
     if let mangledName = node.mangledNameFromComment {

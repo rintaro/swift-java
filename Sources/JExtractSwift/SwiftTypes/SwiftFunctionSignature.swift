@@ -163,7 +163,34 @@ extension SwiftFunctionSignature {
     }
   }
 
-  init(_ node: AccessorDeclSyntax, varNode: VariableDeclSyntax, enclosingType: SwiftType?, symbolTable: SwiftSymbolTable) throws {
+  init(_ varNode: VariableDeclSyntax, kind: VariableAccessorKind, enclosingType: SwiftType?, symbolTable: SwiftSymbolTable) throws {
+
+    // If this is a member of a type, so we will have a self parameter. Figure out the
+    // type and convention for the self parameter.
+    if let enclosingType {
+      var isStatic = false
+      for modifier in varNode.modifiers {
+        switch modifier.name.tokenKind {
+        case .keyword(.static): isStatic = true
+        case .keyword(.class): throw SwiftFunctionTranslationError.classMethod(modifier.name)
+        default: break
+        }
+      }
+
+      if isStatic {
+        self.selfParameter = .staticMethod(enclosingType)
+      } else {
+        self.selfParameter = .instance(
+          SwiftParameter(
+            convention: kind == .set ? .inout : .byValue,
+            type: enclosingType
+          )
+        )
+      }
+    } else {
+      self.selfParameter = nil
+    }
+
     guard let binding = varNode.bindings.first, varNode.bindings.count == 1 else {
       throw SwiftFunctionTranslationError.multipleBindings(varNode)
     }
@@ -173,15 +200,13 @@ extension SwiftFunctionSignature {
     }
     let varType = try SwiftType(varTypeNode, symbolTable: symbolTable)
 
-    switch node.accessorSpecifier {
-    case .keyword(.set):
+    switch kind {
+    case .set:
       self.parameters = [SwiftParameter(convention: .byValue, parameterName: "newValue", type: varType)]
       self.result = .void
-    case .keyword(.get):
+    case .get:
       self.parameters = []
       self.result = .init(convention: .direct, type: varType)
-    default:
-      throw SwiftFunctionTranslationError.unsupportedAccessor(node)
     }
   }
 }
