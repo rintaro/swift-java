@@ -215,7 +215,7 @@ public struct ImportedFunc: ImportedDecl, CustomStringConvertible {
     return identifier
   }
 
-  var swiftSignature: SwiftFunctionSignature?
+  var swiftSignature: SwiftFunctionSignature
 
   public var returnType: TranslatedType
   public var parameters: [ImportedParam]
@@ -280,7 +280,7 @@ public struct ImportedFunc: ImportedDecl, CustomStringConvertible {
     identifier: String,
     returnType: TranslatedType,
     parameters: [ImportedParam],
-    swiftFuncSignature: SwiftFunctionSignature? = nil
+    swiftFuncSignature: SwiftFunctionSignature
   ) {
     self.swiftDecl = decl
     self.module = module
@@ -341,6 +341,7 @@ public struct ImportedVariable: ImportedDecl, CustomStringConvertible {
   /// Usually this will be all the accessors the variable declares,
   /// however if the getter is async or throwing we may not be able to import it
   /// (yet), and therefore would skip it from the supported set.
+  // FIXME: Remove '.set' if the variable is 'let' or 'private(set)'.
   public var supportedAccessorKinds: [VariableAccessorKind] = [.get, .set]
 
   /// This is the base identifier for the function, e.g., "init" for an
@@ -365,10 +366,17 @@ public struct ImportedVariable: ImportedDecl, CustomStringConvertible {
   public var returnType: TranslatedType
 
   /// Synthetic signature of an accessor function of the given kind of this property
-  public func accessorFunc(kind: VariableAccessorKind) -> ImportedFunc? {
+  package func accessorFunc(kind: VariableAccessorKind, symbolTable: SwiftSymbolTable) -> ImportedFunc? {
     guard self.supportedAccessorKinds.contains(kind) else {
       return nil
     }
+
+    let parentSwiftType: SwiftType? = if let parentName {
+      try! SwiftType(parentName.originalSwiftType, symbolTable: symbolTable)
+    } else {
+      nil
+    }
+    let swiftSignature = try! SwiftFunctionSignature(self.syntax, kind: kind, enclosingType: parentSwiftType, symbolTable: symbolTable)
 
     switch kind {
     case .set:
@@ -380,7 +388,9 @@ public struct ImportedVariable: ImportedDecl, CustomStringConvertible {
         parent: self.parentName,
         identifier: self.identifier,
         returnType: TranslatedType.void,
-        parameters: [.init(syntax: newValueParam, type: self.returnType)])
+        parameters: [.init(syntax: newValueParam, type: self.returnType)],
+        swiftFuncSignature: swiftSignature
+      )
       return funcDecl
 
     case .get:
@@ -390,7 +400,9 @@ public struct ImportedVariable: ImportedDecl, CustomStringConvertible {
         parent: self.parentName,
         identifier: self.identifier,
         returnType: self.returnType,
-        parameters: [])
+        parameters: [],
+        swiftFuncSignature: swiftSignature
+      )
       return funcDecl
     }
   }

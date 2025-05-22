@@ -149,25 +149,6 @@ extension Swift2JavaTranslator {
       printer.print("")
     }
   }
-
-  /// A module contains all static and global functions from the Swift module,
-  /// potentially from across multiple swift interfaces.
-  public func writeExportedJavaModule(outputDirectory: String) throws {
-    var printer = CodePrinter()
-    try writeExportedJavaModule(outputDirectory: outputDirectory, printer: &printer)
-  }
-
-  public func writeExportedJavaModule(outputDirectory: String, printer: inout CodePrinter) throws {
-    printModule(&printer)
-
-    if let file = try printer.writeContents(
-      outputDirectory: outputDirectory,
-      javaPackagePath: javaPackagePath,
-      filename: "\(swiftModuleName).java"
-    ) {
-      self.log.info("Generated: \(file): \("done".green).")
-    }
-  }
 }
 
 // ==== ---------------------------------------------------------------------------------------------------------------
@@ -659,7 +640,7 @@ extension Swift2JavaTranslator {
 
     printer.printTypeDecl("private static class \(decl.baseIdentifier)") { printer in
       for accessorKind in decl.supportedAccessorKinds {
-        guard let accessor = decl.accessorFunc(kind: accessorKind) else {
+        guard let accessor = decl.accessorFunc(kind: accessorKind, symbolTable: symbolTable) else {
           log.warning("Skip print for \(accessorKind) of \(decl.identifier)!")
           continue
         }
@@ -672,7 +653,7 @@ extension Swift2JavaTranslator {
 
     // First print all the supporting infra
     for accessorKind in decl.supportedAccessorKinds {
-      guard let accessor = decl.accessorFunc(kind: accessorKind) else {
+      guard let accessor = decl.accessorFunc(kind: accessorKind, symbolTable: symbolTable) else {
         log.warning("Skip print for \(accessorKind) of \(decl.identifier)!")
         continue
       }
@@ -683,7 +664,7 @@ extension Swift2JavaTranslator {
 
     // Then print the actual downcall methods
     for accessorKind in decl.supportedAccessorKinds {
-      guard let accessor = decl.accessorFunc(kind: accessorKind) else {
+      guard let accessor = decl.accessorFunc(kind: accessorKind, symbolTable: symbolTable) else {
         log.warning("Skip print for \(accessorKind) of \(decl.identifier)!")
         continue
       }
@@ -1052,29 +1033,27 @@ extension Swift2JavaTranslator {
     let fieldName = accessorKind.renderDescFieldName
     printer.start("public static final FunctionDescriptor \(fieldName) = ")
 
-    if let swiftSignature = decl.swiftSignature {
-      if let loweredSignature = try? lowerFunctionSignature(swiftSignature) {
-        if let cFunc = try? CFunction(cdeclSignature: loweredSignature.cdecl, cName: thunkNameRegistry.functionThunkName(module: swiftModuleName, decl: decl)) {
-          if cFunc.resultType.isVoid {
-            printer.print("FunctionDescriptor.ofVoid(")
-            printer.indent()
-          } else {
-            printer.print("FunctionDescriptor.of(")
-            printer.indent()
-            var returnDesc = cFunc.resultType.foreignValueLayout
-            printer.print("/* -> */", .continue)
-            printer.print(returnDesc, .parameterNewlineSeparator(cFunc.parameters.isEmpty))
-          }
-
-          for (param, isLast) in cFunc.parameters.withIsLast {
-            printer.print("/* \(param.name ?? "_"): */", .continue)
-            printer.print(param.type.foreignValueLayout, .parameterNewlineSeparator(isLast))
-          }
-
-          printer.outdent()
-          printer.print(");")
-          return
+    if let loweredSignature = try? lowerFunctionSignature(decl.swiftSignature) {
+      if let cFunc = try? CFunction(cdeclSignature: loweredSignature.cdecl, cName: thunkNameRegistry.functionThunkName(module: swiftModuleName, decl: decl)) {
+        if cFunc.resultType.isVoid {
+          printer.print("FunctionDescriptor.ofVoid(")
+          printer.indent()
+        } else {
+          printer.print("FunctionDescriptor.of(")
+          printer.indent()
+          let returnDesc = cFunc.resultType.foreignValueLayout
+          printer.print("/* -> */", .continue)
+          printer.print(returnDesc, .parameterNewlineSeparator(cFunc.parameters.isEmpty))
         }
+
+        for (param, isLast) in cFunc.parameters.withIsLast {
+          printer.print("/* \(param.name ?? "_"): */", .continue)
+          printer.print(param.type.foreignValueLayout, .parameterNewlineSeparator(isLast))
+        }
+
+        printer.outdent()
+        printer.print(");")
+        return
       }
     }
 

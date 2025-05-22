@@ -570,24 +570,7 @@ extension ConversionStep {
   }
 }
 
-extension Swift2JavaTranslator {
-  @_spi(Testing)
-  public func lowerVariableAccessor(
-    _ decl: VariableDeclSyntax,
-    enclosingType: TypeSyntax? = nil,
-    kind: VariableAccessorKind,
-  ) throws -> LoweredVariableAccessor {
-    let enclosingType: SwiftType? = if let enclosingType {
-      try SwiftType(enclosingType, symbolTable: self.symbolTable)
-    } else {
-      nil
-    }
-    let accessorSignature = try SwiftFunctionSignature(decl, kind: kind, enclosingType: enclosingType, symbolTable: self.symbolTable)
-
-    return LoweredVariableAccessor(loweredFunc: try lowerFunctionSignature(accessorSignature))
-  }
-}
-
+/// Wrap a function signature to override the body generation.
 @_spi(Testing)
 public struct LoweredVariableAccessor: Equatable {
   var loweredFunc: LoweredFunctionSignature

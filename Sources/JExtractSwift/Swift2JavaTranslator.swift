@@ -52,7 +52,7 @@ public final class Swift2JavaTranslator {
 
   package var swiftStdlibTypes: SwiftStandardLibraryTypes
 
-  let symbolTable: SwiftSymbolTable
+  package let symbolTable: SwiftSymbolTable
 
   var thunkNameRegistry: ThunkNameRegistry = ThunkNameRegistry()
 

@@ -109,7 +109,7 @@ final class FunctionDescriptorTests {
           """
           public static final FunctionDescriptor DESC_GET = FunctionDescriptor.of(
             /* -> */SWIFT_INT32,
-            /*self$*/SWIFT_POINTER
+            /* self: */SWIFT_POINTER
           );
           """
       )
@@ -123,8 +123,8 @@ final class FunctionDescriptorTests {
         expected:
           """
           public static final FunctionDescriptor DESC_SET = FunctionDescriptor.ofVoid(
-            /*newValue*/SWIFT_INT32,
-            /*self$*/SWIFT_POINTER
+            /* newValue: */SWIFT_INT32,
+            /* self: */SWIFT_POINTER
           );
           """
       )
@@ -189,10 +189,9 @@ extension FunctionDescriptorTests {
 
     let getOutput = CodePrinter.toString { printer in
       st.printFunctionDescriptorValue(
-        &printer, varDecl.accessorFunc(kind: accessorKind)!, accessorKind: accessorKind)
+        &printer, varDecl.accessorFunc(kind: accessorKind, symbolTable: st.symbolTable)!, accessorKind: accessorKind)
     }
 
     try body(getOutput)
   }
-
 }

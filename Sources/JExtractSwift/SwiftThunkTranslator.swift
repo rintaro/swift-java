@@ -95,11 +95,9 @@ struct SwiftThunkTranslator {
     let thunkName = self.st.thunkNameRegistry.functionThunkName(
       module: st.swiftModuleName, decl: function)
 
-    if let swiftSignature = function.swiftSignature {
-      if let loweredSignature = try? st.lowerFunctionSignature(swiftSignature) {
-        let thunkFunc = loweredSignature.cdeclThunk(cName: thunkName, swiftFunctionName: parent.swiftTypeName, stdlibTypes: st.swiftStdlibTypes)
-        return [DeclSyntax(thunkFunc)]
-      }
+    if let loweredSignature = try? st.lowerFunctionSignature(function.swiftSignature) {
+      let thunkFunc = loweredSignature.cdeclThunk(cName: thunkName, swiftFunctionName: parent.swiftTypeName, stdlibTypes: st.swiftStdlibTypes)
+      return [DeclSyntax(thunkFunc)]
     }
 
     fatalError("unsupported")
@@ -142,20 +140,18 @@ struct SwiftThunkTranslator {
     var thunkFuncs: [DeclSyntax] = []
 
     // Getter.
-    if let loweredVariable = try? st.lowerVariableAccessor(decl.syntax, enclosingType: decl.parentName?.originalSwiftType, kind: .get) {
+    for kind in decl.supportedAccessorKinds {
+      let thunkName = st.thunkNameRegistry.variableThunkName(module: st.swiftModuleName, decl: decl, accessorKind: kind)
 
-      let thunkName = st.thunkNameRegistry.variableThunkName(module: st.swiftModuleName, decl: decl, accessorKind: .get)
-      let thunkFunc = loweredVariable.cdeclThunk(cName: thunkName, swiftVariableName: decl.identifier, stdlibTypes: st.swiftStdlibTypes)
-      thunkFuncs.append(DeclSyntax(thunkFunc))
+      if
+        let accessor = decl.accessorFunc(kind: kind, symbolTable: st.symbolTable),
+        let loweredSignature = try? st.lowerFunctionSignature(accessor.swiftSignature)
+      {
+        let loweredVariable = LoweredVariableAccessor(loweredFunc: loweredSignature)
+        let thunkFunc = loweredVariable.cdeclThunk(cName: thunkName, swiftVariableName: decl.identifier, stdlibTypes: st.swiftStdlibTypes)
+        thunkFuncs.append(DeclSyntax(thunkFunc))
+      }
     }
-
-    // Setter.
-    if let loweredVariable = try? st.lowerVariableAccessor(decl.syntax, enclosingType: decl.parentName?.originalSwiftType, kind: .set) {
-      let thunkName = st.thunkNameRegistry.variableThunkName(module: st.swiftModuleName, decl: decl, accessorKind: .set)
-      let thunkFunc = loweredVariable.cdeclThunk(cName: thunkName, swiftVariableName: decl.identifier, stdlibTypes: st.swiftStdlibTypes)
-      thunkFuncs.append(DeclSyntax(thunkFunc))
-    }
-
     return thunkFuncs
   }
 
@@ -163,11 +159,9 @@ struct SwiftThunkTranslator {
     st.log.trace("Rendering thunks for: \(decl.baseIdentifier)")
     let thunkName = st.thunkNameRegistry.functionThunkName(module: st.swiftModuleName, decl: decl)
 
-    if let swiftSignature = decl.swiftSignature {
-      if let loweredSignature = try? st.lowerFunctionSignature(swiftSignature) {
-        let thunkFunc = loweredSignature.cdeclThunk(cName: thunkName, swiftFunctionName: decl.baseIdentifier, stdlibTypes: st.swiftStdlibTypes)
-        return [DeclSyntax(thunkFunc)]
-      }
+    if let loweredSignature = try? st.lowerFunctionSignature(decl.swiftSignature) {
+      let thunkFunc = loweredSignature.cdeclThunk(cName: thunkName, swiftFunctionName: decl.baseIdentifier, stdlibTypes: st.swiftStdlibTypes)
+      return [DeclSyntax(thunkFunc)]
     }
 
     fatalError("unsupported \(decl)")

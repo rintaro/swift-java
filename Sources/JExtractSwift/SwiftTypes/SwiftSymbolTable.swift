@@ -37,7 +37,7 @@ extension SwiftSymbolTableProtocol {
   }
 }
 
-class SwiftSymbolTable {
+package class SwiftSymbolTable {
   var importedModules: [SwiftModuleSymbolTable] = []
   var parsedModule: SwiftParsedModuleSymbolTable
 
