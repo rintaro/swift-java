@@ -469,11 +469,11 @@ extension Swift2JavaTranslator {
     }
     printer.printSeparator(decl.identifier)
 
-    let descClassIdentifier = renderDescClassName(decl)
+    let descClassIdentifier = thunkNameRegistry.functionThunkName(module: swiftModuleName, decl: decl)
     printer.printTypeDecl("private static class \(descClassIdentifier)") { printer in
       printFunctionDescriptorValue(&printer, decl)
-      printAccessorFunctionAddr(&printer, decl)
-      printMethodDowncallHandleForAddrDesc(&printer)
+      printFunctionAddrValue(&printer, decl)
+      printFunctionHandleValue(&printer)
     }
 
     printNominalInitializerConstructors(&printer, decl, parentName: parentName)
@@ -484,7 +484,7 @@ extension Swift2JavaTranslator {
     _ decl: ImportedFunc,
     parentName: TranslatedType
   ) {
-    let descClassIdentifier = renderDescClassName(decl)
+    let descClassIdentifier = thunkNameRegistry.functionThunkName(module: swiftModuleName, decl: decl)
 
     printer.print(
       """
@@ -549,168 +549,69 @@ extension Swift2JavaTranslator {
   public func printFunctionDowncallMethods(_ printer: inout CodePrinter, _ decl: ImportedFunc) {
     printer.printSeparator(decl.identifier)
 
-    printer.printTypeDecl("private static class \(decl.baseIdentifier)") { printer in
+    let descClassIdentifier = thunkNameRegistry.functionThunkName(module: swiftModuleName, decl: decl)
+    printer.printTypeDecl("private static class \(descClassIdentifier)") { printer in
       printFunctionDescriptorValue(&printer, decl)
-      printAccessorFunctionAddr(&printer, decl)
-      printMethodDowncallHandleForAddrDesc(&printer)
+      printFunctionAddrValue(&printer, decl)
+      printFunctionHandleValue(&printer)
     }
 
-    printFunctionDescriptorMethod(&printer, decl: decl)
-    printFunctionMethodHandleMethod(&printer, decl: decl)
-    printFunctionAddressMethod(&printer, decl: decl)
+    let methodName: String? = switch decl.accessorKind {
+    case .get: "get\(decl.identifier.toCamelCase)"
+    case .set: "set\(decl.identifier.toCamelCase)"
+    case nil: nil
+    }
 
     // Render the basic "make the downcall" function
     if decl.hasParent {
-      printFuncDowncallMethod(&printer, decl: decl, paramPassingStyle: .memorySegment)
-      printFuncDowncallMethod(&printer, decl: decl, paramPassingStyle: .wrapper)
+      printFuncDowncallMethod(&printer, methodName: methodName, decl: decl, paramPassingStyle: .memorySegment)
+      printFuncDowncallMethod(&printer, methodName: methodName, decl: decl, paramPassingStyle: .wrapper)
     } else {
-      printFuncDowncallMethod(&printer, decl: decl, paramPassingStyle: nil)
+      printFuncDowncallMethod(&printer, methodName: methodName, decl: decl, paramPassingStyle: nil)
     }
-  }
-
-  private func printFunctionAddressMethod(
-    _ printer: inout CodePrinter,
-    decl: ImportedFunc,
-    accessorKind: VariableAccessorKind? = nil
-  ) {
-
-    let addrName = accessorKind.renderAddrFieldName
-    let methodNameSegment = accessorKind.renderMethodNameSegment
-    let snippet = decl.renderCommentSnippet ?? "* "
-
-    printer.print(
-      """
-      /**
-       * Address for:
-      \(snippet)
-       */
-      public static MemorySegment \(decl.baseIdentifier)\(methodNameSegment)$address() {
-          return \(decl.baseIdentifier).\(addrName);
-      }
-      """
-    )
-  }
-
-  private func printFunctionMethodHandleMethod(
-    _ printer: inout CodePrinter,
-    decl: ImportedFunc,
-    accessorKind: VariableAccessorKind? = nil
-  ) {
-    let handleName = accessorKind.renderHandleFieldName
-    let methodNameSegment = accessorKind.renderMethodNameSegment
-    let snippet = decl.renderCommentSnippet ?? "* "
-
-    printer.print(
-      """
-      /**
-       * Downcall method handle for:
-      \(snippet)
-       */
-      public static MethodHandle \(decl.baseIdentifier)\(methodNameSegment)$handle() {
-          return \(decl.baseIdentifier).\(handleName);
-      }
-      """
-    )
-  }
-
-  private func printFunctionDescriptorMethod(
-    _ printer: inout CodePrinter,
-    decl: ImportedFunc,
-    accessorKind: VariableAccessorKind? = nil
-  ) {
-    let descName = accessorKind.renderDescFieldName
-    let methodNameSegment = accessorKind.renderMethodNameSegment
-    let snippet = decl.renderCommentSnippet ?? "* "
-
-    printer.print(
-      """
-      /**
-       * Function descriptor for:
-      \(snippet)
-       */
-      public static FunctionDescriptor \(decl.baseIdentifier)\(methodNameSegment)$descriptor() {
-          return \(decl.baseIdentifier).\(descName);
-      }
-      """
-    )
   }
 
   public func printVariableDowncallMethods(_ printer: inout CodePrinter, _ decl: ImportedVariable) {
     printer.printSeparator(decl.identifier)
-
-    printer.printTypeDecl("private static class \(decl.baseIdentifier)") { printer in
-      for accessorKind in decl.supportedAccessorKinds {
-        guard let accessor = decl.accessorFunc(kind: accessorKind, symbolTable: symbolTable) else {
-          log.warning("Skip print for \(accessorKind) of \(decl.identifier)!")
-          continue
-        }
-
-        printFunctionDescriptorValue(&printer, accessor, accessorKind: accessorKind)
-        printAccessorFunctionAddr(&printer, accessor, accessorKind: accessorKind)
-        printMethodDowncallHandleForAddrDesc(&printer, accessorKind: accessorKind)
-      }
-    }
-
-    // First print all the supporting infra
-    for accessorKind in decl.supportedAccessorKinds {
-      guard let accessor = decl.accessorFunc(kind: accessorKind, symbolTable: symbolTable) else {
-        log.warning("Skip print for \(accessorKind) of \(decl.identifier)!")
-        continue
-      }
-      printFunctionDescriptorMethod(&printer, decl: accessor, accessorKind: accessorKind)
-      printFunctionMethodHandleMethod(&printer, decl: accessor, accessorKind: accessorKind)
-      printFunctionAddressMethod(&printer, decl: accessor, accessorKind: accessorKind)
-    }
-
-    // Then print the actual downcall methods
     for accessorKind in decl.supportedAccessorKinds {
       guard let accessor = decl.accessorFunc(kind: accessorKind, symbolTable: symbolTable) else {
         log.warning("Skip print for \(accessorKind) of \(decl.identifier)!")
         continue
       }
 
-      // Render the basic "make the downcall" function
-      if decl.hasParent {
-        printFuncDowncallMethod(
-          &printer, decl: accessor, paramPassingStyle: .memorySegment, accessorKind: accessorKind)
-        printFuncDowncallMethod(
-          &printer, decl: accessor, paramPassingStyle: .wrapper, accessorKind: accessorKind)
-      } else {
-        printFuncDowncallMethod(
-          &printer, decl: accessor, paramPassingStyle: nil, accessorKind: accessorKind)
-      }
+      printFunctionDowncallMethods(&printer, accessor)
     }
   }
 
-  func printAccessorFunctionAddr(
-    _ printer: inout CodePrinter, _ decl: ImportedFunc,
-    accessorKind: VariableAccessorKind? = nil
+  func printFunctionAddrValue(
+    _ printer: inout CodePrinter, _ decl: ImportedFunc
   ) {
     let thunkName = thunkNameRegistry.functionThunkName(module: self.swiftModuleName, decl: decl)
     printer.print(
       """
-      public static final MemorySegment \(accessorKind.renderAddrFieldName) =
+      public static final MemorySegment ADDR =
         \(self.swiftModuleName).findOrThrow("\(thunkName)");
       """
     )
   }
 
-  func printMethodDowncallHandleForAddrDesc(
-    _ printer: inout CodePrinter, accessorKind: VariableAccessorKind? = nil
+  func printFunctionHandleValue(
+    _ printer: inout CodePrinter
   ) {
     printer.print(
       """
-      public static final MethodHandle \(accessorKind.renderHandleFieldName) = Linker.nativeLinker().downcallHandle(\(accessorKind.renderAddrFieldName), \(accessorKind.renderDescFieldName));
+      public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
       """
     )
   }
 
   public func printFuncDowncallMethod(
     _ printer: inout CodePrinter,
+    methodName: String? = nil,
     decl: ImportedFunc,
-    paramPassingStyle: SelfParameterVariant?,
-    accessorKind: VariableAccessorKind? = nil
+    paramPassingStyle: SelfParameterVariant?
   ) {
+    let methodName = methodName ?? decl.baseIdentifier
     let returnTy = decl.returnType.javaType
 
     let maybeReturnCast: String
@@ -729,9 +630,6 @@ extension Swift2JavaTranslator {
        */
       """
 
-    // An identifier may be "getX", "setX" or just the plain method name
-    let identifier = accessorKind.renderMethodName(decl)
-
     if paramPassingStyle == SelfParameterVariant.wrapper {
       let guardFromDestroyedObjectCalls: String =
       if decl.hasParent {
@@ -746,23 +644,23 @@ extension Swift2JavaTranslator {
       printer.print(
         """
         \(javaDocComment)
-        public \(returnTy) \(identifier)(\(renderJavaParamDecls(decl, paramPassingStyle: .wrapper))) {
+        public \(returnTy) \(methodName)(\(renderJavaParamDecls(decl, paramPassingStyle: .wrapper))) {
           \(guardFromDestroyedObjectCalls)
-          \(maybeReturnCast) \(identifier)(\(renderForwardJavaParams(decl, paramPassingStyle: .wrapper)));
+          \(maybeReturnCast) \(methodName)(\(renderForwardJavaParams(decl, paramPassingStyle: .wrapper)));
         }
         """
       )
       return
     }
 
+    let descriptorClassIdentifier = thunkNameRegistry.functionThunkName(module: swiftModuleName, decl: decl)
     let needsArena = downcallNeedsConfinedArena(decl)
-    let handleName = accessorKind.renderHandleFieldName
 
     printer.printParts(
       """
       \(javaDocComment)
-      public static \(returnTy) \(identifier)(\(renderJavaParamDecls(decl, paramPassingStyle: paramPassingStyle))) {
-        var mh$ = \(decl.baseIdentifier).\(handleName);
+      public static \(returnTy) \(methodName)(\(renderJavaParamDecls(decl, paramPassingStyle: paramPassingStyle))) {
+        var mh$ = \(descriptorClassIdentifier).HANDLE;
         \(renderTry(withArena: needsArena))
       """,
       renderUpcallHandles(decl),
@@ -778,78 +676,6 @@ extension Swift2JavaTranslator {
       }
       """
     )
-  }
-
-  public func printPropertyAccessorDowncallMethod(
-    _ printer: inout CodePrinter,
-    decl: ImportedFunc,
-    paramPassingStyle: SelfParameterVariant?
-  ) {
-    let returnTy = decl.returnType.javaType
-
-    let maybeReturnCast: String
-    if decl.returnType.javaType == .void {
-      maybeReturnCast = ""  // nothing to return or cast to
-    } else {
-      maybeReturnCast = "return (\(returnTy))"
-    }
-
-    if paramPassingStyle == SelfParameterVariant.wrapper {
-      // delegate to the MemorySegment "self" accepting overload
-      printer.print(
-        """
-        /**
-         * {@snippet lang=swift :
-         * \(/*TODO: make a printSnippet func*/decl.syntax ?? "")
-         * }
-         */
-        public \(returnTy) \(decl.baseIdentifier)(\(renderJavaParamDecls(decl, paramPassingStyle: .wrapper))) {
-          \(maybeReturnCast) \(decl.baseIdentifier)(\(renderForwardJavaParams(decl, paramPassingStyle: .wrapper)));
-        }
-        """
-      )
-      return
-    }
-
-    printer.print(
-      """
-      /**
-       * {@snippet lang=swift :
-       * \(/*TODO: make a printSnippet func*/decl.syntax ?? "")
-       * }
-       */
-      public static \(returnTy) \(decl.baseIdentifier)(\(renderJavaParamDecls(decl, paramPassingStyle: paramPassingStyle))) {
-        var mh$ = \(decl.baseIdentifier).HANDLE;
-        try {
-          if (SwiftKit.TRACE_DOWNCALLS) {
-             SwiftKit.traceDowncall(\(renderForwardJavaParams(decl, paramPassingStyle: .memorySegment)));
-          }
-          \(maybeReturnCast) mh$.invokeExact(\(renderForwardJavaParams(decl, paramPassingStyle: paramPassingStyle)));
-        } catch (Throwable ex$) {
-          throw new AssertionError("should not reach here", ex$);
-        }
-      }
-      """
-    )
-  }
-
-  /// Given a function like `init(cap:name:)`, renders a name like `init_cap_name`
-  public func renderDescClassName(_ decl: ImportedFunc) -> String {
-    var ps: [String] = [decl.baseIdentifier]
-    var pCounter = 0
-
-    func nextUniqueParamName() -> String {
-      pCounter += 1
-      return "p\(pCounter)"
-    }
-
-    for p in decl.effectiveParameters(paramPassingStyle: nil) {
-      let param = "\(p.effectiveName ?? nextUniqueParamName())"
-      ps.append(param)
-    }
-
-    let res = ps.joined(separator: "_")
-    return res
   }
 
   /// Do we need to construct an inline confined arena for the duration of the downcall?
@@ -878,6 +704,7 @@ extension Swift2JavaTranslator {
   }
 
   public func renderJavaParamDecls(_ decl: ImportedFunc, paramPassingStyle: SelfParameterVariant?) -> String {
+
     var ps: [String] = []
     var pCounter = 0
 
@@ -1027,11 +854,9 @@ extension Swift2JavaTranslator {
 
   public func printFunctionDescriptorValue(
     _ printer: inout CodePrinter,
-    _ decl: ImportedFunc,
-    accessorKind: VariableAccessorKind? = nil
+    _ decl: ImportedFunc
   ) {
-    let fieldName = accessorKind.renderDescFieldName
-    printer.start("public static final FunctionDescriptor \(fieldName) = ")
+    printer.start("public static final FunctionDescriptor DESC = ")
 
     if let loweredSignature = try? lowerFunctionSignature(decl.swiftSignature) {
       if let cFunc = try? CFunction(cdeclSignature: loweredSignature.cdecl, cName: thunkNameRegistry.functionThunkName(module: swiftModuleName, decl: decl)) {

@@ -24,47 +24,36 @@ package struct ThunkNameRegistry {
 
   package init() {}
 
-  package mutating func variableThunkName(
-    module: String, decl: ImportedVariable, accessorKind: VariableAccessorKind,
-    file: String = #fileID, line: UInt = #line
-  ) -> String {
-    let kindPart = switch accessorKind {
-    case .set: "set"
-    case .get: "get"
-    }
-
-    let name = if let parent = decl.parentName {
-      "swiftjava_\(module)_\(parent.swiftTypeName)_\(decl.identifier)$\(kindPart)"
-    } else {
-      "swiftjava_\(module)_\(decl.identifier)$\(kindPart)"
-    }
-
-    return name
-  }
-
   package mutating func functionThunkName(
     module: String, decl: ImportedFunc,
-    file: String = #fileID, line: UInt = #line) -> String {
+    file: String = #fileID, line: UInt = #line
+  ) -> String {
     if let existingName = self.registry[decl] {
       return existingName
     }
 
-    let params = decl.effectiveParameters(paramPassingStyle: .swiftThunkSelf)
-    var paramsPart = ""
-    if !params.isEmpty {
-      paramsPart = "_" + params.map { param in
+    let suffix: String
+
+    switch decl.accessorKind {
+    case nil where decl.parameters.isEmpty:
+      suffix = "";
+
+    case nil:
+      suffix = "_" + decl.effectiveParameters(paramPassingStyle: .swiftThunkSelf).map { param in
         param.firstName ?? "_"
       }.joined(separator: "_")
-    }
-      
-      
 
-    let name =
-      if let parent = decl.parent {
-        "swiftjava_\(module)_\(parent.swiftTypeName)_\(decl.baseIdentifier)\(paramsPart)"
-      } else {
-        "swiftjava_\(module)_\(decl.baseIdentifier)\(paramsPart)"
-      }
+    case .get:
+      suffix = "$get"
+    case .set:
+      suffix = "$set"
+    }
+
+    let name = if let parent = decl.parent {
+      "swiftjava_\(module)_\(parent.swiftTypeName)_\(decl.baseIdentifier)\(suffix)"
+    } else {
+      "swiftjava_\(module)_\(decl.baseIdentifier)\(suffix)"
+    }
 
     let emittedCount = self.duplicateNames[name, default: 0]
     defer { self.duplicateNames[name] = emittedCount + 1 }

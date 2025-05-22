@@ -37,7 +37,7 @@ final class StringPassingTests {
       expectedChunks: [
         """
         public static long writeString(java.lang.String string) {
-            var mh$ = writeString.HANDLE;
+            var mh$ = swiftjava___FakeModule_writeString_string.HANDLE;
             try (var arena = Arena.ofConfined()) {
                 var string$ = arena.allocateFrom(string);
                 if (SwiftKit.TRACE_DOWNCALLS) {

@@ -45,7 +45,7 @@ final class FuncCallbackImportTests {
     let funcDecl = st.importedGlobalFuncs.first { $0.baseIdentifier == "callMe" }!
 
     let output = CodePrinter.toString { printer in
-      st.printFuncDowncallMethod(&printer, decl: funcDecl, paramPassingStyle: nil)
+      st.printFuncDowncallMethod(&printer, methodName: "callMe", decl: funcDecl, paramPassingStyle: nil)
     }
 
     assertOutput(
@@ -59,7 +59,7 @@ final class FuncCallbackImportTests {
          * }
          */
         public static void callMe(java.lang.Runnable callback) {
-            var mh$ = callMe.HANDLE;
+            var mh$ = swiftjava___FakeModule_callMe_callback.HANDLE;
             try (var arena = Arena.ofConfined()) {
                 FunctionDescriptor callMe_callback_desc$ = FunctionDescriptor.ofVoid();
                 MethodHandle callMe_callback_handle$ = MethodHandles.lookup()

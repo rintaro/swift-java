@@ -80,7 +80,7 @@ final class MethodImportTests {
          * }
          */
         public static void helloWorld() {
-            var mh$ = helloWorld.HANDLE;
+            var mh$ = swiftjava___FakeModule_helloWorld.HANDLE;
             try {
                 if (SwiftKit.TRACE_DOWNCALLS) {
                     SwiftKit.traceDowncall();
@@ -124,7 +124,7 @@ final class MethodImportTests {
          * }
          */
         public static void globalTakeInt(long i) {
-            var mh$ = globalTakeInt.HANDLE;
+            var mh$ = swiftjava___FakeModule_globalTakeInt_i.HANDLE;
             try {
                 if (SwiftKit.TRACE_DOWNCALLS) {
                   SwiftKit.traceDowncall(i);
@@ -169,7 +169,7 @@ final class MethodImportTests {
          * }
          */
         public static void globalTakeIntLongString(int i32, long l, java.lang.String s) {
-            var mh$ = globalTakeIntLongString.HANDLE;
+            var mh$ = swiftjava___FakeModule_globalTakeIntLongString_i32_l_s.HANDLE;
             try (var arena = Arena.ofConfined()) {
                 var s$ = arena.allocateFrom(s);
                 if (SwiftKit.TRACE_DOWNCALLS) {
@@ -214,7 +214,7 @@ final class MethodImportTests {
          * }
          */
         public static void helloMemberFunction(java.lang.foreign.MemorySegment self$) {
-            var mh$ = helloMemberFunction.HANDLE;
+            var mh$ = swiftjava___FakeModule_MySwiftClass_helloMemberFunction.HANDLE;
             try {
                 if (SwiftKit.TRACE_DOWNCALLS) {
                     SwiftKit.traceDowncall(self$);
@@ -257,7 +257,7 @@ final class MethodImportTests {
          * }
          */
         public static void helloMemberInExtension(java.lang.foreign.MemorySegment self$) {
-            var mh$ = helloMemberInExtension.HANDLE;
+            var mh$ = swiftjava___FakeModule_MySwiftClass_helloMemberInExtension.HANDLE;
             try {
                 if (SwiftKit.TRACE_DOWNCALLS) {
                     SwiftKit.traceDowncall(self$);
@@ -300,7 +300,7 @@ final class MethodImportTests {
          * }
          */
         public static void helloMemberFunction(java.lang.foreign.MemorySegment self$) {
-            var mh$ = helloMemberFunction.HANDLE;
+            var mh$ = swiftjava___FakeModule_MySwiftClass_helloMemberFunction.HANDLE;
             try {
                 if (SwiftKit.TRACE_DOWNCALLS) {
                     SwiftKit.traceDowncall(self$);
@@ -432,7 +432,7 @@ final class MethodImportTests {
          * }
          */
         public MySwiftClass(SwiftArena arena, long len, long cap) {
-          var mh$ = init_len_cap.HANDLE;
+          var mh$ = swiftjava___FakeModule_MySwiftClass_init_len_cap.HANDLE;
           try {
               if (SwiftKit.TRACE_DOWNCALLS) {
                 SwiftKit.traceDowncall(len, cap);
@@ -493,7 +493,7 @@ final class MethodImportTests {
          */
 
         public MySwiftStruct(SwiftArena arena, long len, long cap) {
-          var mh$ = init_len_cap.HANDLE;
+          var mh$ = swiftjava___FakeModule_MySwiftStruct_init_len_cap.HANDLE;
           try {
               if (SwiftKit.TRACE_DOWNCALLS) {
                 SwiftKit.traceDowncall(len, cap);

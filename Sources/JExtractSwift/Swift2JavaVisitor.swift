@@ -223,6 +223,7 @@ final class Swift2JavaVisitor: SyntaxVisitor {
       decl: node.trimmed,
       parent: currentTypeName.map { translator.importedTypes[$0] }??.translatedType,
       identifier: fullName,
+      accessorKind: nil,
       returnType: javaResultType,
       parameters: params,
       swiftFuncSignature: swiftSignature
@@ -329,6 +330,7 @@ final class Swift2JavaVisitor: SyntaxVisitor {
       decl: node.trimmed,
       parent: currentType.translatedType,
       identifier: initIdentifier,
+      accessorKind: nil,
       returnType: currentType.translatedType,
       parameters: params,
       swiftFuncSignature: swiftSignature

@@ -56,6 +56,9 @@ public class HelloJava2Swift {
              SwiftKit.retain(obj.$memorySegment());
              SwiftKit.release(obj.$memorySegment());
 
+             obj.setCounter(12);
+             SwiftKit.trace("counter = " + obj.getCounter());
+
              obj.voidMethod();
              obj.takeIntMethod(42);
 

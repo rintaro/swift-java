@@ -196,6 +196,9 @@ public struct ImportedFunc: ImportedDecl, CustomStringConvertible {
   /// This is a full name such as init(cap:name:).
   public var identifier: String
 
+  /// Accessor kind if this is an artificial accessor, or `nil`.
+  public var accessorKind: VariableAccessorKind?
+
   /// This is the base identifier for the function, e.g., "init" for an
   /// initializer or "f" for "f(a:b:)".
   public var baseIdentifier: String {
@@ -278,6 +281,7 @@ public struct ImportedFunc: ImportedDecl, CustomStringConvertible {
     decl: any DeclSyntaxProtocol,
     parent: TranslatedType?,
     identifier: String,
+    accessorKind: VariableAccessorKind?,
     returnType: TranslatedType,
     parameters: [ImportedParam],
     swiftFuncSignature: SwiftFunctionSignature
@@ -286,6 +290,7 @@ public struct ImportedFunc: ImportedDecl, CustomStringConvertible {
     self.module = module
     self.parent = parent
     self.identifier = identifier
+    self.accessorKind = accessorKind
     self.returnType = returnType
     self.parameters = parameters
     self.swiftSignature = swiftFuncSignature
@@ -309,11 +314,14 @@ public struct ImportedFunc: ImportedDecl, CustomStringConvertible {
 extension ImportedFunc: Hashable {
   public func hash(into hasher: inout Swift.Hasher) {
     self.swiftDecl.id.hash(into: &hasher)
+    self.identifier.hash(into: &hasher)
+    self.accessorKind.hash(into: &hasher)
   }
 
   public static func == (lhs: ImportedFunc, rhs: ImportedFunc) -> Swift.Bool {
     lhs.parent?.originalSwiftType.id == rhs.parent?.originalSwiftType.id
-      && lhs.swiftDecl.id == rhs.swiftDecl.id
+      && lhs.swiftDecl.id == rhs.swiftDecl.id && lhs.identifier == rhs.identifier
+      && lhs.accessorKind == rhs.accessorKind
   }
 }
 
@@ -387,6 +395,7 @@ public struct ImportedVariable: ImportedDecl, CustomStringConvertible {
         decl: self.syntax,
         parent: self.parentName,
         identifier: self.identifier,
+        accessorKind: .set,
         returnType: TranslatedType.void,
         parameters: [.init(syntax: newValueParam, type: self.returnType)],
         swiftFuncSignature: swiftSignature
@@ -399,6 +408,7 @@ public struct ImportedVariable: ImportedDecl, CustomStringConvertible {
         decl: self.syntax,
         parent: self.parentName,
         identifier: self.identifier,
+        accessorKind: .get,
         returnType: self.returnType,
         parameters: [],
         swiftFuncSignature: swiftSignature

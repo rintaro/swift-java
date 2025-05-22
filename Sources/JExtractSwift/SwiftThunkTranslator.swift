@@ -141,12 +141,12 @@ struct SwiftThunkTranslator {
 
     // Getter.
     for kind in decl.supportedAccessorKinds {
-      let thunkName = st.thunkNameRegistry.variableThunkName(module: st.swiftModuleName, decl: decl, accessorKind: kind)
-
       if
         let accessor = decl.accessorFunc(kind: kind, symbolTable: st.symbolTable),
         let loweredSignature = try? st.lowerFunctionSignature(accessor.swiftSignature)
       {
+        let thunkName = st.thunkNameRegistry.functionThunkName(module: st.swiftModuleName, decl: accessor)
+        print("FFFFFFOOOOOOO: \(thunkName)")
         let loweredVariable = LoweredVariableAccessor(loweredFunc: loweredSignature)
         let thunkFunc = loweredVariable.cdeclThunk(cName: thunkName, swiftVariableName: decl.identifier, stdlibTypes: st.swiftStdlibTypes)
         thunkFuncs.append(DeclSyntax(thunkFunc))
