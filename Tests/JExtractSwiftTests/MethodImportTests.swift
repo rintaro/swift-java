@@ -28,25 +28,19 @@ final class MethodImportTests {
     import _StringProcessing
     import _SwiftConcurrencyShims
 
-    // MANGLED NAME: $s14MySwiftLibrary10helloWorldyyF
     public func helloWorld()
 
-    // MANGLED NAME: $s14MySwiftLibrary13globalTakeInt1iySi_tF
     public func globalTakeInt(i: Int)
 
-    // MANGLED NAME: $s14MySwiftLibrary23globalTakeLongIntString1l3i321sys5Int64V_s5Int32VSStF
     public func globalTakeIntLongString(i32: Int32, l: Int64, s: String)
 
     extension MySwiftClass {
       public func helloMemberInExtension()
     }
 
-    // MANGLED NAME: $s14MySwiftLibrary0aB5ClassCMa
     public class MySwiftClass {
-      // MANGLED NAME: $s14MySwiftLibrary0aB5ClassC3len3capACSi_SitcfC
       public init(len: Swift.Int, cap: Swift.Int)
 
-      // MANGLED NAME: $s14MySwiftLibrary0aB5ClassC19helloMemberFunctionyyF
       public func helloMemberFunction()
 
       public func makeInt() -> Int

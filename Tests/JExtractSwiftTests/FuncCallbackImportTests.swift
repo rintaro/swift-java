@@ -29,7 +29,6 @@ final class FuncCallbackImportTests {
     import _StringProcessing
     import _SwiftConcurrencyShims
 
-    // MANGLED NAME: $mockName
     public func callMe(callback: () -> ())
     """
 

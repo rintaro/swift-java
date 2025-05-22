@@ -276,11 +276,6 @@ final class Swift2JavaVisitor: SyntaxVisitor {
       syntax: node
     )
 
-    // Retrieve the mangled name, if available.
-    if let mangledName = node.mangledNameFromComment {
-      varDecl.swiftMangledName = mangledName
-    }
-
     if let currentTypeName {
       log.debug("Record variable in \(currentTypeName)")
       translator.importedTypes[currentTypeName]!.variables.append(varDecl)
@@ -373,25 +368,5 @@ extension DeclSyntaxProtocol where Self: WithModifiersSyntax & WithAttributesSyn
     }
 
     return true
-  }
-}
-
-private let mangledNameCommentPrefix = "MANGLED NAME: "
-
-extension SyntaxProtocol {
-  /// Look in the comment text prior to the node to find a mangled name
-  /// identified by "// MANGLED NAME: ".
-  var mangledNameFromComment: String? {
-    for triviaPiece in leadingTrivia {
-      guard case .lineComment(let comment) = triviaPiece,
-        let matchRange = comment.range(of: mangledNameCommentPrefix)
-      else {
-        continue
-      }
-
-      return String(comment[matchRange.upperBound...])
-    }
-
-    return nil
   }
 }

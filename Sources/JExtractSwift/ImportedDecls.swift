@@ -457,8 +457,6 @@ public struct ImportedVariable: ImportedDecl, CustomStringConvertible {
     return params
   }
 
-  public var swiftMangledName: String = ""
-
   public var syntax: VariableDeclSyntax
 
   public init(
@@ -478,7 +476,6 @@ public struct ImportedVariable: ImportedDecl, CustomStringConvertible {
   public var description: String {
     """
     ImportedFunc {
-      mangledName: \(swiftMangledName)
       identifier: \(identifier)
       returnType: \(returnType)
 

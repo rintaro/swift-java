@@ -29,26 +29,17 @@ final class FunctionDescriptorTests {
     import _StringProcessing
     import _SwiftConcurrencyShims
 
-    // MANGLED NAME: $s14MySwiftLibrary10helloWorldyyF
     public func helloWorld()
-    // MANGLED NAME: $s14MySwiftLibrary13globalTakeInt1iySi_tF
     public func globalTakeInt(i: Swift.Int)
 
-    // MANGLED NAME: $s14MySwiftLibrary23globalTakeLongIntString1l3i321sys5Int64V_s5Int32VSStF
     public func globalTakeLongInt(l: Int64, i32: Int32)
 
-    // MANGLED NAME: $s14MySwiftLibrary7echoInt1iS2i_tFs
     public func echoInt(i: Int) -> Int
 
-    // MANGLED NAME: $s14MySwiftLibrary0aB5ClassCMa
     public class MySwiftClass {
-      // MANGLED NAME: $s14MySwiftLibrary0aB5ClassC3len3capACSi_SitcfC
       public init(len: Swift.Int, cap: Swift.Int)
       @objc deinit
 
-      //  #MySwiftClass.counter!getter: (MySwiftClass) -> () -> Int32 : @$s14MySwiftLibrary0aB5ClassC7counters5Int32Vvg\t// MySwiftClass.counter.getter
-      //  #MySwiftClass.counter!setter: (MySwiftClass) -> (Int32) -> () : @$s14MySwiftLibrary0aB5ClassC7counters5Int32Vvs\t// MySwiftClass.counter.setter
-      //  #MySwiftClass.counter!modify: (MySwiftClass) -> () -> () : @$s14MySwiftLibrary0aB5ClassC7counters5Int32VvM\t// MySwiftClass.counter.modify
       public var counter: Int32
     }
     """
