@@ -75,18 +75,10 @@ extension ConversionStep {
         }
       }
 
-      // Arbitrary nominal types.
-      switch nominal.nominalTypeDecl.kind {
-      case .actor, .class:
-        // For actor and class, we pass around the pointer directly.
-        self = .unsafeCastPointer(.placeholder, swiftType: swiftType)
-      case .enum, .struct, .protocol:
-        // For enums, structs, and protocol types, we pass around the
-        // values indirectly.
-        self = .passIndirectly(
-          .pointee(.typedPointer(.placeholder, swiftType: swiftType))
-        )
-      }
+      // Arbitrary nominal types. We pass around the values indirectly.
+      self = .passIndirectly(
+        .pointee(.typedPointer(.placeholder, swiftType: swiftType))
+      )
 
     case .tuple(let elements):
       self = .tuplify(try elements.map { try ConversionStep(cdeclToSwift: $0) })
@@ -175,26 +167,9 @@ extension ConversionStep {
         }
       }
 
-      // Arbitrary nominal types.
-      switch nominal.nominalTypeDecl.kind {
-      case .actor, .class:
-        // For actor and class, we pass around the pointer directly. Case to
-        // the unsafe raw pointer type we use to represent it in C.
-        // Retain the value so it lives after returning.
-        self = .unsafeCastPointer(
-          .retain(.placeholder),
-          swiftType: .nominal(
-            SwiftNominalType(
-              nominalTypeDecl: stdlibTypes[.unsafeMutableRawPointer]
-            )
-          )
-        )
-
-      case .enum, .struct, .protocol:
-        // For enums, structs, and protocol types, we leave the value alone.
-        // The indirection will be handled by the caller.
-        self = .placeholder
-      }
+      // For arbitrary nominal types, we leave the value alone.
+      // The indirection will be handled by the caller.
+      self = .placeholder
 
     case .tuple(let elements):
       // Convert all of the elements.

@@ -206,7 +206,7 @@ public class SwiftKit {
     }
 
     public static long retainCount(SwiftHeapObject object) {
-        return retainCount(object.$memorySegment());
+        return retainCount(object.$instanceDataAddress());
     }
 
     // ==== ------------------------------------------------------------------------------------------------------------
@@ -236,7 +236,7 @@ public class SwiftKit {
     }
 
     public static void retain(SwiftHeapObject object) {
-        retain(object.$memorySegment());
+        retain(object.$instanceDataAddress());
     }
 
     // ==== ------------------------------------------------------------------------------------------------------------
@@ -266,7 +266,7 @@ public class SwiftKit {
     }
 
     public static long release(SwiftHeapObject object) {
-        return retainCount(object.$memorySegment());
+        return retainCount(object.$instanceDataAddress());
     }
 
     // ==== ------------------------------------------------------------------------------------------------------------

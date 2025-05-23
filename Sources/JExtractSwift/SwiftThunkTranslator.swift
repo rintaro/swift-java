@@ -101,38 +101,6 @@ struct SwiftThunkTranslator {
     }
 
     fatalError("unsupported")
-    let cDecl =
-      """
-      @_cdecl("\(thunkName)")
-      """
-    let typeName = "\(parent.swiftTypeName)"
-
-    if parent.isReferenceType {
-      return [
-        """
-        \(raw: cDecl)
-        public func \(raw: thunkName)(\(raw: st.renderSwiftParamDecls(function, paramPassingStyle: nil))) -> UnsafeMutableRawPointer /* \(raw: typeName) */ {
-          var _self = \(raw: typeName)(\(raw: st.renderForwardSwiftParams(function, paramPassingStyle: nil)))
-          let self$ = unsafeBitCast(_self, to: UnsafeMutableRawPointer.self)
-          _swiftjava_swift_retain(object: self$)
-          return self$
-        }
-        """
-      ]
-    } else {
-      return [
-        """
-        \(raw: cDecl)
-        public func \(raw: thunkName)(
-            \(raw: st.renderSwiftParamDecls(function, paramPassingStyle: nil)),
-            resultBuffer: /* \(raw: typeName) */ UnsafeMutableRawPointer
-        ) {
-          var _self = \(raw: typeName)(\(raw: st.renderForwardSwiftParams(function, paramPassingStyle: nil)))
-          resultBuffer.assumingMemoryBound(to: \(raw: typeName).self).initialize(to: _self)
-        }
-        """
-      ]
-    }
   }
 
   func render(forVariable decl: ImportedVariable) -> [DeclSyntax] {
@@ -146,7 +114,6 @@ struct SwiftThunkTranslator {
         let loweredSignature = try? st.lowerFunctionSignature(accessor.swiftSignature)
       {
         let thunkName = st.thunkNameRegistry.functionThunkName(module: st.swiftModuleName, decl: accessor)
-        print("FFFFFFOOOOOOO: \(thunkName)")
         let loweredVariable = LoweredVariableAccessor(loweredFunc: loweredSignature)
         let thunkFunc = loweredVariable.cdeclThunk(cName: thunkName, swiftVariableName: decl.identifier, stdlibTypes: st.swiftStdlibTypes)
         thunkFuncs.append(DeclSyntax(thunkFunc))
@@ -165,62 +132,6 @@ struct SwiftThunkTranslator {
     }
 
     fatalError("unsupported \(decl)")
-    let returnArrowTy =
-      if decl.returnType.cCompatibleJavaMemoryLayout == .primitive(.void) {
-        "/* \(decl.returnType.swiftTypeName) */"
-      } else {
-        "-> \(decl.returnType.cCompatibleSwiftType) /* \(decl.returnType.swiftTypeName) */"
-      }
-
-    // Do we need to pass a self parameter?
-    let paramPassingStyle: SelfParameterVariant?
-    let callBase: String
-    let callBaseDot: String
-    if let parent = decl.parent, parent.isReferenceType {
-      paramPassingStyle = .swiftThunkSelf
-      callBase = "let self$ = unsafeBitCast(_self, to: \(parent.originalSwiftType).self)"
-      callBaseDot = "self$."
-    } else if let parent = decl.parent, !parent.isReferenceType {
-      paramPassingStyle = .swiftThunkSelf
-      callBase =
-        "var self$ = _self.assumingMemoryBound(to: \(parent.originalSwiftType).self).pointee"
-      callBaseDot = "self$."
-    } else {
-      paramPassingStyle = nil
-      callBase = ""
-      callBaseDot = ""
-    }
-
-    // FIXME: handle in thunk: errors
-
-    let returnStatement: String
-    if decl.returnType.javaType.isString {
-      returnStatement =
-        """
-        let adaptedReturnValue = fatalError("Not implemented: adapting return types in Swift thunks")
-        return adaptedReturnValue
-        """
-    } else {
-      returnStatement = "return returnValue"
-    }
-
-    let declParams = st.renderSwiftParamDecls(
-      decl,
-      paramPassingStyle: paramPassingStyle,
-      style: .cDeclThunk
-    )
-    return
-      [
-        """
-        @_cdecl("\(raw: thunkName)")
-        public func \(raw: thunkName)(\(raw: declParams)) \(raw: returnArrowTy) {
-          \(raw: adaptArgumentsInThunk(decl))
-          \(raw: callBase)
-          let returnValue = \(raw: callBaseDot)\(raw: decl.baseIdentifier)(\(raw: st.renderForwardSwiftParams(decl, paramPassingStyle: paramPassingStyle)))
-          \(raw: returnStatement)
-        }
-        """
-      ]
   }
 
   func adaptArgumentsInThunk(_ decl: ImportedFunc) -> String {

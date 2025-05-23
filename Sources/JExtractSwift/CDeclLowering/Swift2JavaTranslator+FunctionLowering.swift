@@ -258,15 +258,7 @@ extension Swift2JavaTranslator {
         }
       }
 
-      // Arbitrary types are lowered to raw pointers that either "are" the
-      // reference (for classes and actors) or will point to it.
-      let canBeDirectReturn = switch nominal.nominalTypeDecl.kind {
-        case .actor, .class: true
-        case .enum, .protocol, .struct: false
-      }
-      let isReferenceType = (nominal.nominalTypeDecl.kind == .class || nominal.nominalTypeDecl.kind == .actor)
-
-      let isMutable = (convention == .inout || isReferenceType)
+      let isMutable = (convention == .inout)
       return LoweredParameters(
         cdeclParameters: [
           SwiftParameter(
@@ -279,7 +271,7 @@ extension Swift2JavaTranslator {
                   : swiftStdlibTypes[.unsafeRawPointer]
               )
             ),
-            canBeDirectReturn: canBeDirectReturn
+            canBeDirectReturn: false
           )
         ]
       )

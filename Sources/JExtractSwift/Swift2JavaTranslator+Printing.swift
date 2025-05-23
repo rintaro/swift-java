@@ -458,24 +458,13 @@ extension Swift2JavaTranslator {
       """
     )
 
-    let initializeMemorySegment =
-      if let parent = decl.parent,
-        parent.isReferenceType
-      {
-        """
-        this.selfMemorySegment = (MemorySegment) mh$.invokeExact(
-          \(renderForwardJavaParams(decl, paramPassingStyle: nil))
-          );
-        """
-      } else {
-        """
-        this.selfMemorySegment = arena.allocate($layout());
-        mh$.invokeExact(
-          \(renderForwardJavaParams(decl, paramPassingStyle: nil)),
-          /* indirect return buffer */this.selfMemorySegment
-        );
-        """
-      }
+    let initializeMemorySegment = """
+      this.selfMemorySegment = arena.allocate($layout());
+      mh$.invokeExact(
+        \(renderForwardJavaParams(decl, paramPassingStyle: nil)),
+        /* indirect return buffer */this.selfMemorySegment
+      );
+      """
 
     printer.print(
       """
