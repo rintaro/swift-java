@@ -16,6 +16,7 @@ package org.swift.swiftkit;
 
 import java.lang.foreign.AddressLayout;
 import java.lang.foreign.MemoryLayout;
+import java.lang.foreign.SequenceLayout;
 import java.lang.foreign.ValueLayout;
 
 import static java.lang.foreign.ValueLayout.*;
@@ -52,4 +53,13 @@ public class SwiftValueLayout {
     public static final AddressLayout SWIFT_POINTER = ValueLayout.ADDRESS
             .withTargetLayout(MemoryLayout.sequenceLayout(Long.MAX_VALUE, JAVA_BYTE));
 
+    public static final ValueLayout.OfBoolean SWIFT_BOOL = ValueLayout.JAVA_BOOLEAN;
+    public static final ValueLayout.OfByte SWIFT_INT8 = ValueLayout.JAVA_BYTE;
+    public static final ValueLayout.OfChar SWIFT_UINT16 = ValueLayout.JAVA_CHAR;
+    public static final ValueLayout.OfShort SWIFT_INT16 = ValueLayout.JAVA_SHORT;
+    public static final ValueLayout.OfInt SWIFT_INT32 = ValueLayout.JAVA_INT;
+    public static final ValueLayout.OfLong SWIFT_INT64 = ValueLayout.JAVA_LONG;
+    public static final ValueLayout.OfFloat SWIFT_FLOAT = ValueLayout.JAVA_FLOAT;
+    public static final ValueLayout.OfDouble SWIFT_DOUBLE = ValueLayout.JAVA_DOUBLE;
+    public static final SequenceLayout SWIFT_BYTE_ARRAY = MemoryLayout.sequenceLayout(8, ValueLayout.JAVA_BYTE);
 }
