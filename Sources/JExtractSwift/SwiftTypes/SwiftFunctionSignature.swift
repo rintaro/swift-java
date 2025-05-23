@@ -163,7 +163,7 @@ extension SwiftFunctionSignature {
     }
   }
 
-  init(_ varNode: VariableDeclSyntax, kind: VariableAccessorKind, enclosingType: SwiftType?, symbolTable: SwiftSymbolTable) throws {
+  init(_ varNode: VariableDeclSyntax, isSet: Bool, enclosingType: SwiftType?, symbolTable: SwiftSymbolTable) throws {
 
     // If this is a member of a type, so we will have a self parameter. Figure out the
     // type and convention for the self parameter.
@@ -182,7 +182,7 @@ extension SwiftFunctionSignature {
       } else {
         self.selfParameter = .instance(
           SwiftParameter(
-            convention: kind == .set ? .inout : .byValue,
+            convention: isSet ? .inout : .byValue,
             type: enclosingType
           )
         )
@@ -200,11 +200,10 @@ extension SwiftFunctionSignature {
     }
     let varType = try SwiftType(varTypeNode, symbolTable: symbolTable)
 
-    switch kind {
-    case .set:
+    if isSet {
       self.parameters = [SwiftParameter(convention: .byValue, parameterName: "newValue", type: varType)]
       self.result = .void
-    case .get:
+    } else {
       self.parameters = []
       self.result = .init(convention: .direct, type: varType)
     }

@@ -211,11 +211,19 @@ public struct ImportedFunc: ImportedDecl, CustomStringConvertible {
   /// A display name to use to refer to the Swift declaration with its
   /// enclosing type, if there is one.
   public var displayName: String {
-    if let parent {
-      return "\(parent.swiftTypeName).\(identifier)"
+    let prefix = switch accessorKind {
+    case .get: "getter:"
+    case .set: "setter:"
+    case nil: ""
     }
 
-    return identifier
+    let context = if let parent {
+      "\(parent.swiftTypeName)."
+    } else {
+      ""
+    }
+
+    return prefix + context + self.identifier
   }
 
   var swiftSignature: SwiftFunctionSignature
@@ -384,7 +392,12 @@ public struct ImportedVariable: ImportedDecl, CustomStringConvertible {
     } else {
       nil
     }
-    let swiftSignature = try! SwiftFunctionSignature(self.syntax, kind: kind, enclosingType: parentSwiftType, symbolTable: symbolTable)
+    let swiftSignature = try! SwiftFunctionSignature(
+      self.syntax,
+      isSet: kind == .set,
+      enclosingType: parentSwiftType,
+      symbolTable: symbolTable
+    )
 
     switch kind {
     case .set:

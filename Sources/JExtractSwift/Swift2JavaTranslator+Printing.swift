@@ -547,7 +547,7 @@ extension Swift2JavaTranslator {
   }
 
   public func printFunctionDowncallMethods(_ printer: inout CodePrinter, _ decl: ImportedFunc) {
-    printer.printSeparator(decl.identifier)
+    printer.printSeparator(decl.displayName)
 
     let descClassIdentifier = thunkNameRegistry.functionThunkName(module: swiftModuleName, decl: decl)
     printer.printTypeDecl("private static class \(descClassIdentifier)") { printer in
@@ -572,7 +572,6 @@ extension Swift2JavaTranslator {
   }
 
   public func printVariableDowncallMethods(_ printer: inout CodePrinter, _ decl: ImportedVariable) {
-    printer.printSeparator(decl.identifier)
     for accessorKind in decl.supportedAccessorKinds {
       guard let accessor = decl.accessorFunc(kind: accessorKind, symbolTable: symbolTable) else {
         log.warning("Skip print for \(accessorKind) of \(decl.identifier)!")

@@ -50,19 +50,20 @@ public class HelloJava2Swift {
 
         // Example of using an arena; MyClass.deinit is run at end of scope
         try (var arena = SwiftArena.ofConfined()) {
-             MySwiftClass obj = new MySwiftClass(arena, 2222, 7777);
+            MySwiftClass obj = new MySwiftClass(arena, 2222, 7777);
 
-             // just checking retains/releases work
-             SwiftKit.retain(obj.$memorySegment());
-             SwiftKit.release(obj.$memorySegment());
+            // just checking retains/releases work
+            SwiftKit.retain(obj.$memorySegment());
+            SwiftKit.release(obj.$memorySegment());
 
-             obj.setCounter(12);
-             SwiftKit.trace("counter = " + obj.getCounter());
+            obj.setCounter(12);
+            SwiftKit.trace("obj.counter = " + obj.getCounter());
 
-             obj.voidMethod();
-             obj.takeIntMethod(42);
+            obj.voidMethod();
+            obj.takeIntMethod(42);
 
             MySwiftStruct swiftValue = new MySwiftStruct(arena, 2222, 1111);
+            SwiftKit.trace("swiftValue.capacity = " + swiftValue.getCapacity());
         }
 
         System.out.println("DONE.");
