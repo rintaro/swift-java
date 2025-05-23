@@ -133,21 +133,4 @@ struct SwiftThunkTranslator {
 
     fatalError("unsupported \(decl)")
   }
-
-  func adaptArgumentsInThunk(_ decl: ImportedFunc) -> String {
-    var lines: [String] = []
-    for p in decl.parameters {
-      if p.type.javaType.isString {
-        // FIXME: is there a way we can avoid the copying here?
-        let adaptedType =
-          """
-          let \(p.effectiveValueName) = String(cString: \(p.effectiveValueName))
-          """
-
-        lines += [adaptedType]
-      }
-    }
-
-    return lines.joined(separator: "\n")
-  }
 }

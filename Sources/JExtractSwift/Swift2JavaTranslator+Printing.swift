@@ -806,64 +806,28 @@ extension Swift2JavaTranslator {
     printer.start("public static final FunctionDescriptor DESC = ")
 
     if let loweredSignature = try? lowerFunctionSignature(decl.swiftSignature) {
-      if let cFunc = try? CFunction(cdeclSignature: loweredSignature.cdecl, cName: thunkNameRegistry.functionThunkName(module: swiftModuleName, decl: decl)) {
-        if cFunc.resultType.isVoid {
-          printer.print("FunctionDescriptor.ofVoid(")
-          printer.indent()
-        } else {
-          printer.print("FunctionDescriptor.of(")
-          printer.indent()
-          printer.print("/* -> */SwiftValueLayout.", .continue)
-          printer.print(cFunc.resultType.foreignValueLayout, .parameterNewlineSeparator(cFunc.parameters.isEmpty))
-        }
-
-        for (param, isLast) in cFunc.parameters.withIsLast {
-          let layout = param.type.foreignValueLayout
-          printer.print("/* \(param.name ?? "_"): */SwiftValueLayout.", .continue)
-          printer.print(param.type.foreignValueLayout, .parameterNewlineSeparator(isLast))
-        }
-
-        printer.outdent()
-        printer.print(");")
-        return
-      }
-    }
-
-    let isIndirectReturn = decl.isIndirectReturn
-
-    let parameterLayoutDescriptors: [ForeignValueLayout] = javaMemoryLayoutDescriptors(
-      forParametersOf: decl,
-      paramPassingStyle: .pointer
-    )
-
-    if decl.returnType.javaType == .void || isIndirectReturn {
-      printer.print("FunctionDescriptor.ofVoid(")
-      printer.indent()
-    } else {
-      printer.print("FunctionDescriptor.of(")
-      printer.indent()
-
-      // Write return type
-      let returnTyIsLastTy = decl.parameters.isEmpty && !decl.hasParent
-      if decl.isInit {
-        // when initializing, we return a pointer to the newly created object
-        printer.print(
-          "/* -> */\(ForeignValueLayout.SwiftPointer)", .parameterNewlineSeparator(returnTyIsLastTy)
-        )
+      let resultType = try! CType(cdeclType: loweredSignature.cdecl.result.type)
+      let isEmptyParam = loweredSignature.cdecl.parameters.isEmpty
+      if resultType.isVoid {
+        printer.print("FunctionDescriptor.ofVoid(", isEmptyParam ? .continue : .newLine)
+        printer.indent()
       } else {
-        var returnDesc = decl.returnType.foreignValueLayout
-        returnDesc.inlineComment = " -> "
-        printer.print(returnDesc, .parameterNewlineSeparator(returnTyIsLastTy))
+        printer.print("FunctionDescriptor.of(")
+        printer.indent()
+        printer.print("/* -> */SwiftValueLayout.", .continue)
+        printer.print(resultType.foreignValueLayout, .parameterNewlineSeparator(isEmptyParam))
       }
-    }
 
-    // Write all parameters (including synthesized ones, like self)
-    for (desc, isLast) in parameterLayoutDescriptors.withIsLast {
-      printer.print(desc, .parameterNewlineSeparator(isLast))
-    }
+      for (param, isLast) in loweredSignature.cdecl.parameters.withIsLast {
+        let paramType = try! CType(cdeclType: param.type)
+        printer.print("/* \(param.parameterName ?? "_"): */SwiftValueLayout.", .continue)
+        printer.print(paramType.foreignValueLayout, .parameterNewlineSeparator(isLast))
+      }
 
-    printer.outdent()
-    printer.print(");")
+      printer.outdent()
+      printer.print(");")
+      return
+    }
   }
 
   package func printHeapObjectToStringMethod(
