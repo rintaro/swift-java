@@ -50,6 +50,7 @@ extension Swift2JavaTranslator {
   }
 }
 
+/// Responsible for lowering Swift API to C API.
 struct CdeclLowering {
   var swiftStdlibTypes: SwiftStandardLibraryTypes
 
@@ -82,7 +83,7 @@ struct CdeclLowering {
     }
 
     // Lower the result.
-    var loweredResult = try lowerResult(signature.result.type)
+    let loweredResult = try lowerResult(signature.result.type)
 
     return LoweredFunctionSignature(
       original: signature,
@@ -386,7 +387,6 @@ struct CdeclLowering {
         }
       }
 
-
       return LoweredResult(
         cdeclResultType: .void,
         cdeclOutParameters: parameters,
@@ -435,11 +435,6 @@ struct LoweredResult: Equatable {
   var conversion: ConversionStep
 }
 
-enum LoweringError: Error {
-  case inoutNotSupported(SwiftType)
-  case unhandledType(SwiftType)
-}
-
 @_spi(Testing)
 public struct LoweredFunctionSignature: Equatable {
   var original: SwiftFunctionSignature
@@ -449,9 +444,18 @@ public struct LoweredFunctionSignature: Equatable {
   var result: LoweredResult
 
   var allLoweredParameters: [SwiftParameter] {
-    parameters.flatMap({ $0.cdeclParameters })
-      + (selfParameter.map({$0.cdeclParameters}) ?? [])
-      + result.cdeclOutParameters
+    var all: [SwiftParameter] = []
+    // Original parameters.
+    for loweredParam in parameters {
+      all += loweredParam.cdeclParameters
+    }
+    // Self.
+    if let selfParameter = self.selfParameter {
+      all += selfParameter.cdeclParameters
+    }
+    // Out parameters.
+    all += result.cdeclOutParameters
+    return all
   }
 }
 
@@ -568,51 +572,6 @@ extension LoweredFunctionSignature {
   }
 }
 
-//extension ConversionStep {
-//  /// Form a set of statements that initializes the placeholders within
-//  /// the given conversion step from ones in the other step, effectively
-//  /// exploding something like `(a, (b, c)) = (d, (e, f))` into
-//  /// separate initializations for a, b, and c from d, e, and f, respectively.
-//  func initialize(
-//    placeholder: String,
-//    from otherStep: ConversionStep,
-//    otherPlaceholder: String
-//  ) -> [CodeBlockItemSyntax] {
-//    // Create separate assignments for each element in paired tuples.
-//    if case .tuplify(let elements) = self,
-//        case .tuplify(let otherElements) = otherStep {
-//      assert(elements.count == otherElements.count)
-//
-//      return elements.indices.flatMap { index in
-//        elements[index].initialize(
-//          placeholder: "\(placeholder)_\(index)",
-//          from: otherElements[index],
-//          otherPlaceholder: "\(otherPlaceholder)_\(index)"
-//        )
-//      }
-//    }
-//
-//    // The value we're initializing from.
-//    let otherExpr = otherStep.asExprSyntax(
-//      isSelf: false,
-//      placeholder: otherPlaceholder
-//    )
-//
-//    // If we have a "pointee" on where we are performing initialization, we
-//    // need to instead produce an initialize(to:) call.
-//    if case .pointee(let innerSelf) = self {
-//      let selfPointerExpr = innerSelf.asExprSyntax(
-//        isSelf: true,
-//        placeholder: placeholder
-//      )
-//
-//      return [ "  \(selfPointerExpr).initialize(to: \(otherExpr))" ]
-//    }
-//
-//    let selfExpr = self.asExprSyntax(isSelf: true, placeholder: placeholder)
-//    return [ "  \(selfExpr) = \(otherExpr)" ]
-//  }
-//}
 
 /// Wrap a function signature to override the body generation.
 @_spi(Testing)
@@ -648,3 +607,7 @@ extension LoweredVariableAccessor {
   }
 }
 
+enum LoweringError: Error {
+  case inoutNotSupported(SwiftType)
+  case unhandledType(SwiftType)
+}
