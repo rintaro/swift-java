@@ -15,7 +15,7 @@
 import SwiftSyntax
 
 struct SwiftResult: Equatable {
-  var convention: SwiftResultConvention
+  var convention: SwiftResultConvention // currently not used.
   var type: SwiftType
 }
 

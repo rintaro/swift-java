@@ -76,8 +76,7 @@ func assertLoweredFunction(
     )
   )
 
-  let cFunction = translator.cdeclToCFunctionLowering(
-    loweredFunction.cdecl,
+  let cFunction = try loweredFunction.cFunctionDecl(
     cName: "c_\(swiftFunctionName)"
   )
   #expect(

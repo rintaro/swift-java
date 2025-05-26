@@ -45,14 +45,14 @@ final class MethodThunkTests {
       [
         """
         @_cdecl("swiftjava_FakeModule_globalVar$get")
-        public func swiftjava_FakeModule_globalVar$get() -> UnsafeMutableRawPointer {
-          return unsafeBitCast(Unmanaged.passRetained(globalVar).takeUnretainedValue(), to: UnsafeMutableRawPointer.self)
+        public func swiftjava_FakeModule_globalVar$get(_ _result: UnsafeMutableRawPointer) {
+          _result.assumingMemoryBound(to: MyClass.self).initialize(to: globalVar)
         }
         """,
         """
         @_cdecl("swiftjava_FakeModule_globalVar$set")
-        public func swiftjava_FakeModule_globalVar$set(_ newValue: UnsafeMutableRawPointer) {
-          globalVar = unsafeBitCast(newValue, to: MyClass.self)
+        public func swiftjava_FakeModule_globalVar$set(_ newValue: UnsafeRawPointer) {
+          globalVar = newValue.assumingMemoryBound(to: MyClass.self).pointee
         }
         """,
         """
@@ -75,20 +75,20 @@ final class MethodThunkTests {
         """,
         """
         @_cdecl("swiftjava_FakeModule_MyClass_init_arg")
-        public func swiftjava_FakeModule_MyClass_init_arg(_ arg: Int32) -> UnsafeMutableRawPointer {
-          return unsafeBitCast(Unmanaged.passRetained(MyClass(arg: arg)).takeUnretainedValue(), to: UnsafeMutableRawPointer.self)
+        public func swiftjava_FakeModule_MyClass_init_arg(_ arg: Int32, _ _result: UnsafeMutableRawPointer) {
+          _result.assumingMemoryBound(to: MyClass.self).initialize(to: MyClass(arg: arg))
         }
         """,
         """
         @_cdecl("swiftjava_FakeModule_MyClass_property$get")
-        public func swiftjava_FakeModule_MyClass_property$get(_ self: UnsafeMutableRawPointer) -> Int {
-          return unsafeBitCast(self, to: MyClass.self).property
+        public func swiftjava_FakeModule_MyClass_property$get(_ self: UnsafeRawPointer) -> Int {
+          return self.assumingMemoryBound(to: MyClass.self).pointee.property
         }
         """,
         """
         @_cdecl("swiftjava_FakeModule_MyClass_property$set")
         public func swiftjava_FakeModule_MyClass_property$set(_ newValue: Int, _ self: UnsafeMutableRawPointer) {
-          unsafeBitCast(self, to: MyClass.self).property = newValue
+          self.assumingMemoryBound(to: MyClass.self).pointee.property = newValue
         }
         """
       ]

@@ -38,9 +38,6 @@ enum ConversionStep: Equatable {
   /// of the `Unsafe(Mutable)Pointer` types in Swift.
   indirect case pointee(ConversionStep)
 
-  /// Pass this value indirectly, via & for explicit `inout` parameters.
-  indirect case passIndirectly(ConversionStep)
-
   /// Initialize a value of the given Swift type with the set of labeled
   /// arguments.
   case initialize(SwiftType, arguments: [LabeledArgument<ConversionStep>])
@@ -52,54 +49,25 @@ enum ConversionStep: Equatable {
   /// tuples, which Swift will convert to the labeled tuple form.
   case tuplify([ConversionStep])
 
-  /// Retain the value.
-  indirect case retain(ConversionStep)
+  /// Initialize mutable raw pointer with a typed value.
+  indirect case populatePointer(name: String, assumingType: SwiftType? = nil, to: ConversionStep)
 
-  /// Create an initialization step that produces the raw pointer type that
-  /// corresponds to the typed pointer.
-  init(
-    initializeRawPointerFromTyped typedStep: ConversionStep,
-    isMutable: Bool,
-    isPartOfBufferPointer: Bool,
-    stdlibTypes: SwiftStandardLibraryTypes
-  ) {
-    // Initialize the corresponding raw pointer type from the typed
-    // pointer we have on the Swift side.
-    let rawPointerType = isMutable
-      ? stdlibTypes[.unsafeMutableRawPointer]
-      : stdlibTypes[.unsafeRawPointer]
-    self = .initialize(
-      .nominal(
-        SwiftNominalType(
-          nominalTypeDecl: rawPointerType
-        )
-      ),
-      arguments: [
-        LabeledArgument(
-          argument: isPartOfBufferPointer
-            ? .explodedComponent(
-              typedStep,
-              component: "pointer"
-            )
-            : typedStep
-        ),
-      ]
-    )
-  }
+  /// Perform multiple conversions, but discard the result.
+  case tupleExplode([ConversionStep], name: String?)
 
   /// Count the number of times that the placeholder occurs within this
   /// conversion step.
   var placeholderCount: Int {
     switch self {
     case .explodedComponent(let inner, component: _),
-        .passIndirectly(let inner), .pointee(let inner),
+        .pointee(let inner),
         .typedPointer(let inner, swiftType: _),
         .unsafeCastPointer(let inner, swiftType: _),
-        .retain(let inner):
+        .populatePointer(name: _, assumingType: _, to: let inner):
       inner.placeholderCount
     case .initialize(_, arguments: let arguments):
       arguments.reduce(0) { $0 + $1.argument.placeholderCount }
-    case .placeholder:
+    case .placeholder, .tupleExplode:
       1
     case .tuplify(let elements):
       elements.reduce(0) { $0 + $1.placeholderCount }
@@ -108,35 +76,31 @@ enum ConversionStep: Equatable {
 
   /// Convert the conversion step into an expression with the given
   /// value as the placeholder value in the expression.
-  func asExprSyntax(isSelf: Bool, placeholder: String) -> ExprSyntax {
+  func asExprSyntax(placeholder: String, bodyItems: inout [CodeBlockItemSyntax]) -> ExprSyntax? {
     switch self {
     case .placeholder:
       return "\(raw: placeholder)"
 
     case .explodedComponent(let step, component: let component):
-      return step.asExprSyntax(isSelf: false, placeholder: "\(placeholder)_\(component)")
+      return step.asExprSyntax(placeholder: "\(placeholder)_\(component)", bodyItems: &bodyItems)
 
     case .unsafeCastPointer(let step, swiftType: let swiftType):
-      let untypedExpr = step.asExprSyntax(isSelf: false, placeholder: placeholder)
+      let untypedExpr = step.asExprSyntax(placeholder: placeholder, bodyItems: &bodyItems)
       return "unsafeBitCast(\(untypedExpr), to: \(swiftType.metatypeReferenceExprSyntax))"
 
     case .typedPointer(let step, swiftType: let type):
-      let untypedExpr = step.asExprSyntax(isSelf: isSelf, placeholder: placeholder)
+      let untypedExpr = step.asExprSyntax(placeholder: placeholder, bodyItems: &bodyItems)
       return "\(untypedExpr).assumingMemoryBound(to: \(type.metatypeReferenceExprSyntax))"
 
     case .pointee(let step):
-      let untypedExpr = step.asExprSyntax(isSelf: isSelf, placeholder: placeholder)
+      let untypedExpr = step.asExprSyntax(placeholder: placeholder, bodyItems: &bodyItems)
       return "\(untypedExpr).pointee"
-
-    case .passIndirectly(let step):
-      let innerExpr = step.asExprSyntax(isSelf: false, placeholder: placeholder)
-      return isSelf ? innerExpr : "&\(innerExpr)"
 
     case .initialize(let type, arguments: let arguments):
       let args = LabeledExprListSyntax {
         for arg in arguments {
-          let argExpr = arg.argument.asExprSyntax(isSelf: false, placeholder: placeholder)
-          LabeledExprSyntax(label: arg.label, expression: argExpr)
+          let argExpr = arg.argument.asExprSyntax(placeholder: placeholder, bodyItems: &bodyItems)
+          LabeledExprSyntax(label: arg.label, expression: argExpr!)
         }
       }
       return "\(raw: type.description)(\(args))"
@@ -144,15 +108,35 @@ enum ConversionStep: Equatable {
     case .tuplify(let elements):
       let tuple = TupleExprSyntax {
         for (index, element) in elements.enumerated() {
-          let elemExpr = element.asExprSyntax(isSelf: false, placeholder: "\(placeholder)_\(index)")
-          LabeledExprSyntax(expression: elemExpr)
+          let elemExpr = element.asExprSyntax(placeholder: "\(placeholder)_\(index)", bodyItems: &bodyItems)
+          LabeledExprSyntax(expression: elemExpr!)
         }
       }
       return ExprSyntax(tuple)
 
-    case .retain(let step):
-      let inner = step.asExprSyntax(isSelf: false, placeholder: placeholder)
-      return "Unmanaged.passRetained(\(inner)).takeUnretainedValue()"
+    case .populatePointer(name: let pointer, assumingType: let type, to: let step):
+      let inner = step.asExprSyntax(placeholder: placeholder, bodyItems: &bodyItems)
+      let casting = if let type {
+        ".assumingMemoryBound(to: \(type.metatypeReferenceExprSyntax))"
+      } else {
+        ""
+      }
+      return "\(raw: pointer)\(raw: casting).initialize(to: \(inner))"
+
+    case .tupleExplode(let steps, let name):
+      let toExplode: String
+      if let name {
+        bodyItems.append("let \(raw: name) = \(raw: placeholder)")
+        toExplode = name
+      } else {
+        toExplode = placeholder
+      }
+      for (i, step) in steps.enumerated() {
+        if let result = step.asExprSyntax(placeholder: "\(toExplode).\(i)", bodyItems: &bodyItems) {
+          bodyItems.append(CodeBlockItemSyntax(item: .expr(result)))
+        }
+      }
+      return nil
     }
   }
 }

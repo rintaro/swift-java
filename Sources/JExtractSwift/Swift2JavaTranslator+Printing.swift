@@ -805,9 +805,11 @@ extension Swift2JavaTranslator {
   ) {
     printer.start("public static final FunctionDescriptor DESC = ")
 
-    if let loweredSignature = try? lowerFunctionSignature(decl.swiftSignature) {
-      let resultType = try! CType(cdeclType: loweredSignature.cdecl.result.type)
-      let isEmptyParam = loweredSignature.cdecl.parameters.isEmpty
+    let lowering = CdeclLowering(swiftStdlibTypes: swiftStdlibTypes)
+    if let loweredSignature = try? lowering.lowerFunctionSignature(decl.swiftSignature) {
+      let loweredParams = loweredSignature.allLoweredParameters
+      let resultType = try! CType(cdeclType: loweredSignature.result.cdeclResultType)
+      let isEmptyParam = loweredParams.isEmpty
       if resultType.isVoid {
         printer.print("FunctionDescriptor.ofVoid(", isEmptyParam ? .continue : .newLine)
         printer.indent()
@@ -818,7 +820,7 @@ extension Swift2JavaTranslator {
         printer.print(resultType.foreignValueLayout, .parameterNewlineSeparator(isEmptyParam))
       }
 
-      for (param, isLast) in loweredSignature.cdecl.parameters.withIsLast {
+      for (param, isLast) in loweredParams.withIsLast {
         let paramType = try! CType(cdeclType: param.type)
         printer.print("/* \(param.parameterName ?? "_"): */SwiftValueLayout.", .continue)
         printer.print(paramType.foreignValueLayout, .parameterNewlineSeparator(isLast))

@@ -95,7 +95,8 @@ struct SwiftThunkTranslator {
     let thunkName = self.st.thunkNameRegistry.functionThunkName(
       module: st.swiftModuleName, decl: function)
 
-    if let loweredSignature = try? st.lowerFunctionSignature(function.swiftSignature) {
+    let lowering = CdeclLowering(swiftStdlibTypes: st.swiftStdlibTypes)
+    if let loweredSignature = try? lowering.lowerFunctionSignature(function.swiftSignature) {
       let thunkFunc = loweredSignature.cdeclThunk(cName: thunkName, swiftFunctionName: parent.swiftTypeName, stdlibTypes: st.swiftStdlibTypes)
       return [DeclSyntax(thunkFunc)]
     }
@@ -107,11 +108,11 @@ struct SwiftThunkTranslator {
     st.log.trace("Rendering thunks for: \(decl.identifier)")
     var thunkFuncs: [DeclSyntax] = []
 
-    // Getter.
+    let lowering = CdeclLowering(swiftStdlibTypes: st.swiftStdlibTypes)
     for kind in decl.supportedAccessorKinds {
       if
         let accessor = decl.accessorFunc(kind: kind, symbolTable: st.symbolTable),
-        let loweredSignature = try? st.lowerFunctionSignature(accessor.swiftSignature)
+        let loweredSignature = try? lowering.lowerFunctionSignature(accessor.swiftSignature)
       {
         let thunkName = st.thunkNameRegistry.functionThunkName(module: st.swiftModuleName, decl: accessor)
         let loweredVariable = LoweredVariableAccessor(loweredFunc: loweredSignature)
@@ -126,7 +127,8 @@ struct SwiftThunkTranslator {
     st.log.trace("Rendering thunks for: \(decl.baseIdentifier)")
     let thunkName = st.thunkNameRegistry.functionThunkName(module: st.swiftModuleName, decl: decl)
 
-    if let loweredSignature = try? st.lowerFunctionSignature(decl.swiftSignature) {
+    let lowering = CdeclLowering(swiftStdlibTypes: st.swiftStdlibTypes)
+    if let loweredSignature = try? lowering.lowerFunctionSignature(decl.swiftSignature) {
       let thunkFunc = loweredSignature.cdeclThunk(cName: thunkName, swiftFunctionName: decl.baseIdentifier, stdlibTypes: st.swiftStdlibTypes)
       return [DeclSyntax(thunkFunc)]
     }
