@@ -150,7 +150,17 @@ public class MyClass extends SwiftVal {
         return Myclas_getCount.invoke(selfSegment);
     }
 
-    MyClass getChild() {
+    /// foo(arg: Int) -> (Int, Int)
+    /// segment = allocate(Layout.ofInt)
+    /// segment = allocate(Layout.ofInt)
+    /// void foo(int arg0, arg1_1)
+
+    MyClass getChild(MyClass of) {
+        String str = "foobar";
+        Integer foo = 123;
+        segment = arena.allocate();
+        handle.invoke(of.$selfSegment(), segment);
+        return new MyClass(segment);
         return MyClass_getChild.invoke(x, y, this);
     }
 }

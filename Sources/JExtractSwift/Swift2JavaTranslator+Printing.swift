@@ -32,16 +32,16 @@ extension Swift2JavaTranslator {
 
   public func writeExportedJavaSources(outputDirectory: String, printer: inout CodePrinter) throws {
     for (_, ty) in importedTypes.sorted(by: { (lhs, rhs) in lhs.key < rhs.key }) {
-      let filename = "\(ty.javaClassName).java"
+      let filename = "\(ty.swiftNominal.name).java"
       log.info("Printing contents: \(filename)")
-      printImportedClass(&printer, ty)
+      printImportedNominal(&printer, ty)
 
       if let outputFile = try printer.writeContents(
         outputDirectory: outputDirectory,
         javaPackagePath: javaPackagePath,
         filename: filename
       ) {
-        print("[swift-java] Generated: \(ty.javaClassName.bold).java (at \(outputFile))")
+        print("[swift-java] Generated: \(ty.swiftNominal.name.bold).java (at \(outputFile))")
       }
     }
 
@@ -173,7 +173,7 @@ extension Swift2JavaTranslator {
     }
   }
 
-  package func printImportedClass(_ printer: inout CodePrinter, _ decl: ImportedNominalType) {
+  package func printImportedNominal(_ printer: inout CodePrinter, _ decl: ImportedNominalType) {
     printHeader(&printer)
     printPackage(&printer)
     printImports(&printer)
@@ -217,12 +217,12 @@ extension Swift2JavaTranslator {
 
       // Initializers
       for initDecl in decl.initializers {
-        printClassConstructors(&printer, initDecl)
+        printInitializerDowncallConstructors(&printer, initDecl)
       }
 
       // Properties
-      for varDecl in decl.variables {
-        printVariableDowncallMethods(&printer, varDecl)
+      for accessorDecl in decl.variables {
+        printFunctionDowncallMethods(&printer, accessorDecl)
       }
 
       // Methods
@@ -422,11 +422,8 @@ extension Swift2JavaTranslator {
     )
   }
 
-  public func printClassConstructors(_ printer: inout CodePrinter, _ decl: ImportedFunc) {
-    guard let parentName = decl.parent else {
-      fatalError("init must be inside a parent type! Was: \(decl)")
-    }
-    printer.printSeparator(decl.identifier)
+  public func printNominalInitializerConstructors(_ printer: inout CodePrinter, _ decl: ImportedFunc) {
+    printer.printSeparator(decl.displayName)
 
     let descClassIdentifier = thunkNameRegistry.functionThunkName(module: swiftModuleName, decl: decl)
     printer.printTypeDecl("private static class \(descClassIdentifier)") { printer in
@@ -435,15 +432,16 @@ extension Swift2JavaTranslator {
       printFunctionHandleValue(&printer)
     }
 
-    printNominalInitializerConstructors(&printer, decl, parentName: parentName)
+    printNominalInitializerConstructors(&printer, decl)
   }
 
   public func printNominalInitializerConstructors(
     _ printer: inout CodePrinter,
-    _ decl: ImportedFunc,
-    parentName: TranslatedType
+    _ decl: ImportedFunc
   ) {
     let descClassIdentifier = thunkNameRegistry.functionThunkName(module: swiftModuleName, decl: decl)
+    let parentType = decl.parentType
+    decl.translatedSignature.selfParameter.
 
     printer.print(
       """
@@ -504,18 +502,17 @@ extension Swift2JavaTranslator {
       printFunctionHandleValue(&printer)
     }
 
-    let methodName: String? = switch decl.accessorKind {
-    case .get: "get\(decl.identifier.toCamelCase)"
-    case .set: "set\(decl.identifier.toCamelCase)"
-    case nil: nil
+    let methodName: String = switch decl.kind {
+    case .getter: "get\(decl.name.toCamelCase)"
+    case .setter: "set\(decl.name.toCamelCase)"
+    case .function: decl.name
+    case .initializer: fatalError("unreachable")
     }
 
     // Render the basic "make the downcall" function
-    if decl.hasParent {
-      printFuncDowncallMethod(&printer, methodName: methodName, decl: decl, paramPassingStyle: .memorySegment)
-      printFuncDowncallMethod(&printer, methodName: methodName, decl: decl, paramPassingStyle: .wrapper)
-    } else {
-      printFuncDowncallMethod(&printer, methodName: methodName, decl: decl, paramPassingStyle: nil)
+    printFuncDowncallMethod(&printer, methodName: methodName, decl: decl)
+    if decl.translatedSignature.requiresArena {
+      printFuncDowncallWithAutoArena(&printer, methodName: methodName, decl: decl)
     }
   }
 
@@ -554,19 +551,10 @@ extension Swift2JavaTranslator {
 
   public func printFuncDowncallMethod(
     _ printer: inout CodePrinter,
-    methodName: String? = nil,
-    decl: ImportedFunc,
-    paramPassingStyle: SelfParameterVariant?
+    methodName: String,
+    decl: ImportedFunc
   ) {
-    let methodName = methodName ?? decl.baseIdentifier
-    let returnTy = decl.returnType.javaType
-
-    let maybeReturnCast: String
-    if decl.returnType.javaType == .void {
-      maybeReturnCast = ""  // nothing to return or cast to
-    } else {
-      maybeReturnCast = "return (\(returnTy))"
-    }
+    let returnTy = decl.translatedSignature.result.javaResultType
 
     // TODO: we could copy the Swift method's documentation over here, that'd be great UX
     let javaDocComment: String =
@@ -577,227 +565,39 @@ extension Swift2JavaTranslator {
        */
       """
 
-    if paramPassingStyle == SelfParameterVariant.wrapper {
-      let guardFromDestroyedObjectCalls: String =
-      if decl.hasParent {
-        """
-        if (this.$state$destroyed.get()) {
-          throw new IllegalStateException("Attempted to call method on already destroyed instance of " + getClass().getSimpleName() + "!");
-        }
-        """
-      } else { "" }
-
-      // delegate to the MemorySegment "self" accepting overload
-      printer.print(
-        """
-        \(javaDocComment)
-        public \(returnTy) \(methodName)(\(renderJavaParamDecls(decl, paramPassingStyle: .wrapper))) {
-          \(guardFromDestroyedObjectCalls)
-          \(maybeReturnCast) \(methodName)(\(renderForwardJavaParams(decl, paramPassingStyle: .wrapper)));
-        }
-        """
-      )
-      return
-    }
-
     let descriptorClassIdentifier = thunkNameRegistry.functionThunkName(module: swiftModuleName, decl: decl)
-    let needsArena = downcallNeedsConfinedArena(decl)
+    let needsArena = decl.translatedSignature.requiresArena
 
-    printer.printParts(
-      """
+    var paramDecls = decl.translatedSignature.parameters
+      .flatMap(\.javaParameters)
+      .map { "\($0.javaType) \($0.parameterName)" }
+      .joined(separator: ", ")
+    if needsArena {
+      paramDecls += ", SwiftArena $arena"
+    }
+
+    printer.print("""
       \(javaDocComment)
-      public static \(returnTy) \(methodName)(\(renderJavaParamDecls(decl, paramPassingStyle: paramPassingStyle))) {
-        var mh$ = \(descriptorClassIdentifier).HANDLE;
-        \(renderTry(withArena: needsArena))
-      """,
-      renderUpcallHandles(decl),
-      renderParameterDowncallConversions(decl),
-      """
-          if (SwiftKit.TRACE_DOWNCALLS) {
-             SwiftKit.traceDowncall(\(renderForwardJavaParams(decl, paramPassingStyle: .memorySegment)));
-          }
-          \(maybeReturnCast) mh$.invokeExact(\(renderForwardJavaParams(decl, paramPassingStyle: paramPassingStyle)));
-        } catch (Throwable ex$) {
-          throw new AssertionError("should not reach here", ex$);
-        }
+      public static \(returnTy) \(methodName)(\(paramDecls)) {
+      """)
+    printer.indent()
+
+    printer.print("try {")
+    printer.indent()
+
+    printer.print(renderDowncall(decl))
+
+    printer.outdent()
+    printer.print("""
+      } catch (Throwable ex$) {
+        throw new AssertionError("should not reach here", ex$);
       }
-      """
-    )
+      """)
+
+    printer.outdent()
+    printer.print("}")
   }
 
-  /// Do we need to construct an inline confined arena for the duration of the downcall?
-  public func downcallNeedsConfinedArena(_ decl: ImportedFunc) -> Bool {
-    for p in decl.parameters {
-      // We need to detect if any of the parameters is a closure we need to prepare
-      // an upcall handle for.
-      if p.type.javaType.isSwiftClosure {
-        return true
-      }
-
-      if p.type.javaType.isString {
-        return true
-      }
-    }
-
-    return false
-  }
-
-  public func renderTry(withArena: Bool) -> String {
-    if withArena {
-      "try (var arena = Arena.ofConfined()) {"
-    } else {
-      "try {"
-    }
-  }
-
-  public func renderJavaParamDecls(_ decl: ImportedFunc, paramPassingStyle: SelfParameterVariant?) -> String {
-
-    var ps: [String] = []
-    var pCounter = 0
-
-    func nextUniqueParamName() -> String {
-      pCounter += 1
-      return "p\(pCounter)"
-    }
-
-    for p in decl.effectiveParameters(paramPassingStyle: paramPassingStyle) {
-      let param = "\(p.type.javaType.description) \(p.effectiveName ?? nextUniqueParamName())"
-      ps.append(param)
-    }
-
-    let res = ps.joined(separator: ", ")
-    return res
-  }
-
-  // TODO: these are stateless, find new place for them?
-  public func renderSwiftParamDecls(
-    _ decl: ImportedFunc,
-    paramPassingStyle: SelfParameterVariant?,
-    style: ParameterVariant? = nil
-  ) -> String {
-    var ps: [String] = []
-    var pCounter = 0
-
-    func nextUniqueParamName() -> String {
-      pCounter += 1
-      return "p\(pCounter)"
-    }
-
-    for p in decl.effectiveParameters(paramPassingStyle: paramPassingStyle) {
-      let firstName = p.firstName ?? "_"
-      let secondName = p.secondName ?? p.firstName ?? nextUniqueParamName()
-
-      let paramTy: String =
-        if style == .cDeclThunk, p.type.javaType.isString {
-          "UnsafeMutablePointer<CChar>"  // TODO: is this ok?
-        } else if paramPassingStyle == .swiftThunkSelf {
-          "\(p.type.cCompatibleSwiftType)"
-        } else {
-          p.type.swiftTypeName.description
-        }
-
-      let param =
-        if firstName == secondName {
-          // We have to do this to avoid a 'extraneous duplicate parameter name; 'number' already has an argument label' warning
-          "\(firstName): \(paramTy)"
-        } else {
-          "\(firstName) \(secondName): \(paramTy)"
-        }
-      ps.append(param)
-    }
-
-    if paramPassingStyle == .swiftThunkSelf {
-      ps.append("_self: UnsafeMutableRawPointer")
-    }
-
-    let res = ps.joined(separator: ", ")
-    return res
-  }
-
-  public func renderUpcallHandles(_ decl: ImportedFunc) -> String {
-    var printer = CodePrinter()
-    for p in decl.parameters where p.type.javaType.isSwiftClosure {
-      if p.type.javaType == .javaLangRunnable {
-        let paramName = p.secondName ?? p.firstName ?? "_"
-        let handleDesc = p.type.javaType.prepareClosureDowncallHandle(
-          decl: decl, parameter: paramName)
-        printer.print(handleDesc)
-      }
-    }
-
-    return printer.contents
-  }
-
-  public func renderParameterDowncallConversions(_ decl: ImportedFunc) -> String {
-    var printer = CodePrinter()
-    for p in decl.parameters {
-      if p.type.javaType.isString {
-        printer.print(
-          """
-          var \(p.effectiveValueName)$ = arena.allocateFrom(\(p.effectiveValueName));
-          """
-        )
-      }
-    }
-
-    return printer.contents
-  }
-
-  public func renderForwardJavaParams(
-    _ decl: ImportedFunc, paramPassingStyle: SelfParameterVariant?
-  ) -> String {
-    var ps: [String] = []
-    var pCounter = 0
-
-    func nextUniqueParamName() -> String {
-      pCounter += 1
-      return "p\(pCounter)"
-    }
-
-    for p in decl.effectiveParameters(paramPassingStyle: paramPassingStyle) {
-      // FIXME: fix the handling here we're already a memory segment
-      let param: String
-      if p.effectiveName == "self$" {
-        precondition(paramPassingStyle == .memorySegment)
-        param = "self$"
-      } else if p.type.javaType.isString {
-        // TODO: make this less one-off and maybe call it "was adapted"?
-        if paramPassingStyle == .wrapper {
-          // pass it raw, we're not performing adaptation here it seems as we're passing wrappers around
-          param = "\(p.effectiveValueName)"
-        } else {
-          param = "\(p.effectiveValueName)$"
-        }
-      } else {
-        param = "\(p.renderParameterForwarding() ?? nextUniqueParamName())"
-      }
-      ps.append(param)
-    }
-
-    // Add the forwarding "self"
-    if paramPassingStyle == .wrapper && !decl.isInit {
-      ps.append("$memorySegment()")
-    }
-
-    return ps.joined(separator: ", ")
-  }
-
-  // TODO: these are stateless, find new place for them?
-  public func renderForwardSwiftParams(
-    _ decl: ImportedFunc, paramPassingStyle: SelfParameterVariant?
-  ) -> String {
-    var ps: [String] = []
-
-    for p in decl.effectiveParameters(paramPassingStyle: paramPassingStyle) {
-      if let firstName = p.firstName {
-        ps.append("\(firstName): \(p.effectiveValueName)")
-      } else {
-        ps.append("\(p.effectiveValueName)")
-      }
-    }
-
-    return ps.joined(separator: ", ")
-  }
 
   public func printFunctionDescriptorValue(
     _ printer: inout CodePrinter,
@@ -805,31 +605,28 @@ extension Swift2JavaTranslator {
   ) {
     printer.start("public static final FunctionDescriptor DESC = ")
 
-    let lowering = CdeclLowering(swiftStdlibTypes: swiftStdlibTypes)
-    if let loweredSignature = try? lowering.lowerFunctionSignature(decl.swiftSignature) {
-      let loweredParams = loweredSignature.allLoweredParameters
-      let resultType = try! CType(cdeclType: loweredSignature.result.cdeclResultType)
-      let isEmptyParam = loweredParams.isEmpty
-      if resultType.isVoid {
-        printer.print("FunctionDescriptor.ofVoid(", isEmptyParam ? .continue : .newLine)
-        printer.indent()
-      } else {
-        printer.print("FunctionDescriptor.of(")
-        printer.indent()
-        printer.print("/* -> */SwiftValueLayout.", .continue)
-        printer.print(resultType.foreignValueLayout, .parameterNewlineSeparator(isEmptyParam))
-      }
-
-      for (param, isLast) in loweredParams.withIsLast {
-        let paramType = try! CType(cdeclType: param.type)
-        printer.print("/* \(param.parameterName ?? "_"): */SwiftValueLayout.", .continue)
-        printer.print(paramType.foreignValueLayout, .parameterNewlineSeparator(isLast))
-      }
-
-      printer.outdent()
-      printer.print(");")
-      return
+    let loweredSignature = decl.loweredSignature
+    let loweredParams = loweredSignature.allLoweredParameters
+    let resultType = try! CType(cdeclType: loweredSignature.result.cdeclResultType)
+    let isEmptyParam = loweredParams.isEmpty
+    if resultType.isVoid {
+      printer.print("FunctionDescriptor.ofVoid(", isEmptyParam ? .continue : .newLine)
+      printer.indent()
+    } else {
+      printer.print("FunctionDescriptor.of(")
+      printer.indent()
+      printer.print("/* -> */SwiftValueLayout.", .continue)
+      printer.print(resultType.foreignValueLayout, .parameterNewlineSeparator(isEmptyParam))
     }
+
+    for (param, isLast) in loweredParams.withIsLast {
+      let paramType = try! CType(cdeclType: param.type)
+      printer.print("/* \(param.parameterName ?? "_"): */SwiftValueLayout.", .continue)
+      printer.print(paramType.foreignValueLayout, .parameterNewlineSeparator(isLast))
+    }
+
+    printer.outdent()
+    printer.print(");")
   }
 
   package func printHeapObjectToStringMethod(

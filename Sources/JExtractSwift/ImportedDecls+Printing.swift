@@ -20,10 +20,10 @@ extension ImportedFunc {
   /// Render a `@{@snippet ... }` comment section that can be put inside a JavaDoc comment
   /// when referring to the original declaration a printed method refers to.
   var renderCommentSnippet: String? {
-    if let syntax {
+    if let signatureString {
       """
        * {@snippet lang=swift :
-       * \(syntax)
+       * \(signatureString)
        * }
       """
     } else {

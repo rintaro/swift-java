@@ -140,3 +140,10 @@ enum ConversionStep: Equatable {
     }
   }
 }
+
+struct LabeledArgument<Element> {
+  var label: String?
+  var argument: Element
+}
+
+extension LabeledArgument: Equatable where Element: Equatable { }

@@ -73,11 +73,11 @@ public struct CodePrinter {
     function: String = #function,
     file: String = #fileID,
     line: UInt = #line,
-    body: (inout CodePrinter) -> ()
-  ) {
+    body: (inout CodePrinter) throws -> ()
+  ) rethrows {
     print("\(text) {")
     indent()
-    body(&self)
+    try body(&self)
     outdent()
     print("}", .sloc, function: function, file: file, line: line)
   }

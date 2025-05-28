@@ -22,6 +22,10 @@ enum SwiftType: Equatable {
   indirect case optional(SwiftType)
   case tuple([SwiftType])
 
+  static var void: Self {
+    return .tuple([])
+  }
+
   var asNominalType: SwiftNominalType? {
     switch self {
     case .nominal(let nominal): nominal
@@ -47,8 +51,23 @@ enum SwiftType: Equatable {
     }
   }
 
-  static var void: Self {
-    return .tuple([])
+  /// Reference type where the mutations don't require 'inout' convention.
+  var isReferenceType: Bool {
+    switch self {
+    case .nominal(let nominal):
+      let nominalTypeDecl = nominal.nominalTypeDecl
+      switch nominalTypeDecl.kind {
+      case .actor, .class:
+        return true
+      case .enum, .struct, .protocol:
+        return false
+      }
+    case .metatype, .function:
+      // These can't be mutated, but...
+      return true
+    case .optional, .tuple:
+      return false
+    }
   }
 }
 

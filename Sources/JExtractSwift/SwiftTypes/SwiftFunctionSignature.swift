@@ -21,6 +21,12 @@ public struct SwiftFunctionSignature: Equatable {
   var selfParameter: SwiftSelfParameter?
   var parameters: [SwiftParameter]
   var result: SwiftResult
+
+  init(selfParameter: SwiftSelfParameter? = nil, parameters: [SwiftParameter], result: SwiftResult) {
+    self.selfParameter = selfParameter
+    self.parameters = parameters
+    self.result = result
+  }
 }
 
 /// Describes the "self" parameter of a Swift function signature.
@@ -38,33 +44,16 @@ enum SwiftSelfParameter: Equatable {
 }
 
 extension SwiftFunctionSignature {
-  /// Create a function declaration with the given name that has this
-  /// signature.
-  package func createFunctionDecl(_ name: String) -> FunctionDeclSyntax {
-    let parametersStr = parameters.map(\.description).joined(separator: ", ")
-
-    let resultWithArrow: String
-    if result.type.isVoid {
-      resultWithArrow = ""
-    } else {
-      resultWithArrow = " -> \(result.type.description)"
-    }
-
-    let decl: DeclSyntax = """
-      func \(raw: name)(\(raw: parametersStr))\(raw: resultWithArrow) {
-        // implementation
-      }
-      """
-    return decl.cast(FunctionDeclSyntax.self)
-  }
-}
-
-extension SwiftFunctionSignature {
   init(
     _ node: InitializerDeclSyntax,
     enclosingType: SwiftType?,
     symbolTable: SwiftSymbolTable
   ) throws {
+    // Prohibit generics for now.
+    if let generics = node.genericParameterClause {
+      throw SwiftFunctionTranslationError.generic(generics)
+    }
+
     guard let enclosingType else {
       throw SwiftFunctionTranslationError.missingEnclosingType(node)
     }
@@ -79,11 +68,13 @@ extension SwiftFunctionSignature {
       throw SwiftFunctionTranslationError.generic(generics)
     }
 
-    self.selfParameter = .initializer(enclosingType)
-    self.result = SwiftResult(convention: .direct, type: enclosingType)
-    self.parameters = try Self.translateFunctionSignature(
-      node.signature,
-      symbolTable: symbolTable
+    self.init(
+      selfParameter: .initializer(enclosingType),
+      parameters: try Self.translateFunctionSignature(
+        node.signature,
+        symbolTable: symbolTable
+      ),
+      result: SwiftResult(convention: .direct, type: enclosingType)
     )
   }
 
@@ -92,8 +83,14 @@ extension SwiftFunctionSignature {
     enclosingType: SwiftType?,
     symbolTable: SwiftSymbolTable
   ) throws {
+    // Prohibit generics for now.
+    if let generics = node.genericParameterClause {
+      throw SwiftFunctionTranslationError.generic(generics)
+    }
+
     // If this is a member of a type, so we will have a self parameter. Figure out the
     // type and convention for the self parameter.
+    let selfParameter: SwiftSelfParameter?
     if let enclosingType {
       var isMutating = false
       var isConsuming = false
@@ -109,9 +106,9 @@ extension SwiftFunctionSignature {
       }
 
       if isStatic {
-        self.selfParameter = .staticMethod(enclosingType)
+        selfParameter = .staticMethod(enclosingType)
       } else {
-        self.selfParameter = .instance(
+        selfParameter = .instance(
           SwiftParameter(
             convention: isMutating ? .inout : isConsuming ? .consuming : .byValue,
             type: enclosingType
@@ -119,29 +116,27 @@ extension SwiftFunctionSignature {
         )
       }
     } else {
-      self.selfParameter = nil
+      selfParameter = nil
     }
 
     // Translate the parameters.
-    self.parameters = try Self.translateFunctionSignature(
+    let parameters = try Self.translateFunctionSignature(
       node.signature,
       symbolTable: symbolTable
     )
 
     // Translate the result type.
+    let result: SwiftResult
     if let resultType = node.signature.returnClause?.type {
-      self.result = try SwiftResult(
+      result = try SwiftResult(
         convention: .direct,
         type: SwiftType(resultType, symbolTable: symbolTable)
       )
     } else {
-      self.result = .void
+      result = .void
     }
 
-    // Prohibit generics for now.
-    if let generics = node.genericParameterClause {
-      throw SwiftFunctionTranslationError.generic(generics)
-    }
+    self.init(selfParameter: selfParameter, parameters: parameters, result: result)
   }
 
   /// Translate the function signature, returning the list of translated
@@ -182,7 +177,7 @@ extension SwiftFunctionSignature {
       } else {
         self.selfParameter = .instance(
           SwiftParameter(
-            convention: isSet ? .inout : .byValue,
+            convention: isSet && !enclosingType.isReferenceType ? .inout : .byValue,
             type: enclosingType
           )
         )
@@ -198,14 +193,14 @@ extension SwiftFunctionSignature {
     guard let varTypeNode = binding.typeAnnotation?.type else {
       throw SwiftFunctionTranslationError.missingTypeAnnotation(varNode)
     }
-    let varType = try SwiftType(varTypeNode, symbolTable: symbolTable)
+    let valueType = try SwiftType(varTypeNode, symbolTable: symbolTable)
 
     if isSet {
-      self.parameters = [SwiftParameter(convention: .byValue, parameterName: "newValue", type: varType)]
+      self.parameters = [SwiftParameter(convention: .byValue, parameterName: "newValue", type: valueType)]
       self.result = .void
     } else {
       self.parameters = []
-      self.result = .init(convention: .direct, type: varType)
+      self.result = .init(convention: .direct, type: valueType)
     }
   }
 }

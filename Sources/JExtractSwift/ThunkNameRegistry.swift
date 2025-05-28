@@ -33,26 +33,19 @@ package struct ThunkNameRegistry {
     }
 
     let suffix: String
-
-    switch decl.accessorKind {
-    case nil where decl.parameters.isEmpty:
-      suffix = "";
-
-    case nil:
-      suffix = "_" + decl.effectiveParameters(paramPassingStyle: .swiftThunkSelf).map { param in
-        param.firstName ?? "_"
-      }.joined(separator: "_")
-
-    case .get:
+    switch decl.kind {
+    case .getter:
       suffix = "$get"
-    case .set:
+    case .setter:
       suffix = "$set"
+    default:
+      suffix = ""
     }
 
-    let name = if let parent = decl.parent {
-      "swiftjava_\(module)_\(parent.swiftTypeName)_\(decl.baseIdentifier)\(suffix)"
+    let name = if let parent = decl.parentType {
+      "swiftjava_\(module)_\(parent)_\(decl.name)\(suffix)"
     } else {
-      "swiftjava_\(module)_\(decl.baseIdentifier)\(suffix)"
+      "swiftjava_\(module)_\(decl.name)\(suffix)"
     }
 
     let emittedCount = self.duplicateNames[name, default: 0]

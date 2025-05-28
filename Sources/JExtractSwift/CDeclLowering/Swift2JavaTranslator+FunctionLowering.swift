@@ -29,7 +29,7 @@ extension Swift2JavaTranslator {
       enclosingType: try enclosingType.map { try SwiftType($0, symbolTable: symbolTable) },
       symbolTable: symbolTable
     )
-    return try CdeclLowering(swiftStdlibTypes: swiftStdlibTypes).lowerFunctionSignature(signature)
+    return try CdeclLowering(swiftStdlibTypes: swiftStdlibTypes).lowerFunctionSignature(signature, apiKind: .function)
   }
 
   /// Lower the given initializer to a C-compatible entrypoint,
@@ -46,7 +46,7 @@ extension Swift2JavaTranslator {
       symbolTable: symbolTable
     )
 
-    return try CdeclLowering(swiftStdlibTypes: swiftStdlibTypes).lowerFunctionSignature(signature)
+    return try CdeclLowering(swiftStdlibTypes: swiftStdlibTypes).lowerFunctionSignature(signature, apiKind: .initializer)
   }
 }
 
@@ -59,7 +59,8 @@ struct CdeclLowering {
   ///
   /// Throws an error if this function cannot be lowered for any reason.
   func lowerFunctionSignature(
-    _ signature: SwiftFunctionSignature
+    _ signature: SwiftFunctionSignature,
+    apiKind: SwiftAPIKind
   ) throws -> LoweredFunctionSignature {
     // Lower the self parameter.
     let loweredSelf: LoweredParameter? = switch signature.selfParameter {
@@ -87,6 +88,7 @@ struct CdeclLowering {
 
     return LoweredFunctionSignature(
       original: signature,
+      apiKind: apiKind,
       selfParameter: loweredSelf,
       parameters: loweredParameters,
       result: loweredResult
@@ -411,33 +413,58 @@ struct CdeclLowering {
   }
 }
 
-struct LabeledArgument<Element> {
-  var label: String?
-  var argument: Element
+enum SwiftAPIKind {
+  case function
+  case initializer
+  case getter
+  case setter
 }
 
-extension LabeledArgument: Equatable where Element: Equatable { }
-
+/// Represent a Swift parameter in the cdecl thunk.
 struct LoweredParameter: Equatable {
+  /// Lowered parameters in cdecl thunk.
+  /// One Swift parameter can be lowered to multiple parameters.
+  /// E.g. 'Data' as (baseAddress, length) pair.
   var cdeclParameters: [SwiftParameter]
+
+  /// Conversion to convert the cdecl thunk parameters to the original Swift argument.
   var conversion: ConversionStep
 
   init(cdeclParameters: [SwiftParameter], conversion: ConversionStep) {
     self.cdeclParameters = cdeclParameters
     self.conversion = conversion
+
     assert(cdeclParameters.count == conversion.placeholderCount)
   }
 }
 
 struct LoweredResult: Equatable {
+  /// The return type of the cdecl thunk.
   var cdeclResultType: SwiftType
+
+  /// Out parameters for populating the returning values.
+  ///
+  /// Currently, if this is not empty, `cdeclResultType` is `Void`. But the thunk
+  /// may utilize both in the future, for example returning the status while
+  /// populating the out parameter.
   var cdeclOutParameters: [SwiftParameter]
+
+  /// The conversion from the Swift result to cdecl result.
   var conversion: ConversionStep
+}
+
+extension LoweredResult {
+  /// Whether the result is returned by populating the passed-in pointer parameters.
+  var hasIndirectResult: Bool {
+    !cdeclOutParameters.isEmpty
+  }
 }
 
 @_spi(Testing)
 public struct LoweredFunctionSignature: Equatable {
   var original: SwiftFunctionSignature
+
+  var apiKind: SwiftAPIKind
 
   var selfParameter: LoweredParameter?
   var parameters: [LoweredParameter]
@@ -457,20 +484,26 @@ public struct LoweredFunctionSignature: Equatable {
     all += result.cdeclOutParameters
     return all
   }
+
+  var cdeclSignature: SwiftFunctionSignature {
+    SwiftFunctionSignature(
+      selfParameter: nil,
+      parameters: allLoweredParameters,
+      result: SwiftResult(convention: .direct, type: result.cdeclResultType)
+    )
+  }
 }
 
 extension LoweredFunctionSignature {
   /// Produce the `@_cdecl` thunk for this lowered function signature that will
   /// call into the original function.
-  fileprivate func cdeclThunk(
+  public func cdeclThunk(
     cName: String,
-    stdlibTypes: SwiftStandardLibraryTypes,
-    withResult resultBuilder: (_ selfExpr: ExprSyntax?, _ arguments: [ExprSyntax]) -> ExprSyntax
+    swiftAPIName: String,
+    stdlibTypes: SwiftStandardLibraryTypes
   ) -> FunctionDeclSyntax {
 
-    let cdeclParams = allLoweredParameters
-      .map { "_ \($0.parameterName!): \($0.descriptionInType)" }
-      .joined(separator: ", ")
+    let cdeclParams = allLoweredParameters.map(\.description).joined(separator: ", ")
     let returnClause = !result.cdeclResultType.isVoid ? " -> \(result.cdeclResultType.description)" : ""
 
     var loweredCDecl = try! FunctionDeclSyntax(
@@ -505,8 +538,38 @@ extension LoweredFunctionSignature {
       )!
     }
 
+    // Build callee expression.
+    let callee: ExprSyntax = if let selfExpr {
+      if case .initializer = self.apiKind {
+        // Don't bother to create explicit ${Self}.init expression.
+        selfExpr
+      } else {
+        ExprSyntax(MemberAccessExprSyntax(base: selfExpr, name: .identifier(swiftAPIName)))
+      }
+    } else {
+      ExprSyntax(DeclReferenceExprSyntax(baseName: .identifier(swiftAPIName)))
+    }
+
     // Build the result.
-    let resultExpr = resultBuilder(selfExpr, paramExprs)
+    let resultExpr: ExprSyntax
+    switch apiKind {
+    case .function, .initializer:
+      let arguments = paramExprs.enumerated()
+        .map { (i, argument) -> String in
+          let argExpr = original.parameters[i].convention == .inout ? "&\(argument)" : argument
+          return LabeledExprSyntax(label: original.parameters[i].argumentLabel, expression: argExpr).description
+        }
+        .joined(separator: ", ")
+      resultExpr = "\(callee)(\(raw: arguments))"
+
+    case .getter:
+      assert(paramExprs.isEmpty)
+      resultExpr = callee
+
+    case .setter:
+      assert(paramExprs.count == 1)
+      resultExpr = "\(callee) = \(paramExprs[0])"
+    }
 
     // Lower the result.
     if !original.result.type.isVoid {
@@ -532,34 +595,6 @@ extension LoweredFunctionSignature {
   }
 
   @_spi(Testing)
-  public func cdeclThunk(
-    cName: String,
-    swiftFunctionName: String,
-    stdlibTypes: SwiftStandardLibraryTypes
-  ) -> FunctionDeclSyntax {
-    self.cdeclThunk(cName: cName, stdlibTypes: stdlibTypes) { selfExpr, arguments in
-      // Build call expression.
-      let callee: ExprSyntax = if let selfExpr {
-        if case .initializer(_)  = original.selfParameter {
-          // Don't bother to create explicit ${Self}.init expresssion.
-          selfExpr
-        } else {
-          ExprSyntax(MemberAccessExprSyntax(base: selfExpr, name: .identifier(swiftFunctionName)))
-        }
-      } else {
-        ExprSyntax(DeclReferenceExprSyntax(baseName: .identifier(swiftFunctionName)))
-      }
-
-      return ExprSyntax(FunctionCallExprSyntax(calledExpression: callee, leftParen: .leftParenToken(), rightParen: .rightParenToken()) {
-        for (i, argument) in arguments.enumerated() {
-          let argExpr = original.parameters[i].convention == .inout ? "&\(argument)" : argument
-          LabeledExprSyntax(label: original.parameters[i].argumentLabel, expression: argExpr)
-        }
-      })
-    }
-  }
-
-  @_spi(Testing)
   public func cFunctionDecl(cName: String) throws -> CFunction {
     return CFunction(
       resultType: try CType(cdeclType: self.result.cdeclResultType),
@@ -569,41 +604,6 @@ extension LoweredFunctionSignature {
       },
       isVariadic: false
     )
-  }
-}
-
-
-/// Wrap a function signature to override the body generation.
-@_spi(Testing)
-public struct LoweredVariableAccessor: Equatable {
-  var loweredFunc: LoweredFunctionSignature
-}
-
-extension LoweredVariableAccessor {
-  /// Produce the `@_cdecl` thunk for this lowered function signature that will
-  /// call into the original function.
-  @_spi(Testing)
-  public func cdeclThunk(
-    cName: String,
-    swiftVariableName: String,
-    stdlibTypes: SwiftStandardLibraryTypes
-  ) -> FunctionDeclSyntax {
-    loweredFunc.cdeclThunk(cName: cName, stdlibTypes: stdlibTypes) { selfExpr, arguments in
-      let variableRefExpr: ExprSyntax = if let selfExpr {
-        ExprSyntax(MemberAccessExprSyntax(base: selfExpr, name: .identifier(swiftVariableName)))
-      } else {
-        ExprSyntax(DeclReferenceExprSyntax(baseName: .identifier(swiftVariableName)))
-      }
-
-      if arguments.isEmpty {
-        // Getter.
-        return variableRefExpr
-      } else {
-        // Setter.
-        assert(arguments.count == 1)
-        return ExprSyntax("\(variableRefExpr) = \(arguments[0])")
-      }
-    }
   }
 }
 
