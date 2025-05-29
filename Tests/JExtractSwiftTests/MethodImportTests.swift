@@ -167,9 +167,9 @@ final class MethodImportTests {
          * public func globalTakeIntLongString(i32: Int32, l: Int64, s: String)
          * }
          */
-        public static void globalTakeIntLongString(int i32, long l, java.lang.String s, SwiftArena arena$) {
+        public static void globalTakeIntLongString(int i32, long l, java.lang.String s) {
             var mh$ = swiftjava___FakeModule_globalTakeIntLongString_i32_l_s.HANDLE;
-            try {
+            try(var arena$ = Arena.ofConfined()) {
                 var s$ = SwiftKit.toCString(s, arena$);
                 if (SwiftKit.TRACE_DOWNCALLS) {
                     SwiftKit.traceDowncall(i32, l, s$);
@@ -311,11 +311,11 @@ final class MethodImportTests {
          * public init(len: Swift.Int, cap: Swift.Int)
          * }
          */
-        public MySwiftClass(long len, long cap, SwiftArena arena$) {
+        public MySwiftClass(long len, long cap, SwiftArena swiftArena$) {
             super(() -> {
                 var mh$ = swiftjava___FakeModule_MySwiftClass_init_len_cap.HANDLE;
                 try {
-                    MemorySegment _result = arena$.allocate(MySwiftClass.$layout());
+                    MemorySegment _result = swiftArena$.allocate(MySwiftClass.$LAYOUT());
                     if (SwiftKit.TRACE_DOWNCALLS) {
                         SwiftKit.traceDowncall(len, cap, _result);
                     }
@@ -324,7 +324,7 @@ final class MethodImportTests {
                 } catch (Throwable ex$) {
                     throw new AssertionError("should not reach here", ex$);
                 }
-            }, arena$);
+            }, swiftArena$);
         }
         """
     )
@@ -370,11 +370,11 @@ final class MethodImportTests {
          * public init(len: Swift.Int, cap: Swift.Int)
          * }
          */
-        public MySwiftStruct(long len, long cap, SwiftArena arena$) {
+        public MySwiftStruct(long len, long cap, SwiftArena swiftArena$) {
             super(() -> {
                 var mh$ = swiftjava___FakeModule_MySwiftStruct_init_len_cap.HANDLE;
                 try {
-                    MemorySegment _result = arena$.allocate(MySwiftStruct.$layout());
+                    MemorySegment _result = swiftArena$.allocate(MySwiftStruct.$LAYOUT());
                     if (SwiftKit.TRACE_DOWNCALLS) {
                         SwiftKit.traceDowncall(len, cap, _result);
                     }
@@ -383,7 +383,7 @@ final class MethodImportTests {
                 } catch (Throwable ex$) {
                     throw new AssertionError("should not reach here", ex$);
                 }
-            }, arena$);
+            }, swiftArena$);
         }
         """    )
   }

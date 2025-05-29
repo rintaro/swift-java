@@ -58,9 +58,9 @@ final class FuncCallbackImportTests {
          * public func callMe(callback: () -> ())
          * }
          */
-        public static void callMe(java.lang.Runnable callback, SwiftArena arena$) {
+        public static void callMe(java.lang.Runnable callback) {
           var mh$ = swiftjava___FakeModule_callMe_callback.HANDLE;
-          try {
+          try(var arena$ = Arena.ofConfined()) {
             var callback$ = SwiftKit.toUpcallStub(callback, arena$);
             if (SwiftKit.TRACE_DOWNCALLS) {
                 SwiftKit.traceDowncall(callback$);

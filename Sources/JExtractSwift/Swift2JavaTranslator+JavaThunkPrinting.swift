@@ -57,7 +57,7 @@ extension Swift2JavaTranslator {
         javaPackagePath: javaPackagePath,
         filename: filename)
       {
-        print("[swift-java] Generated: \(self.swiftModuleName).java (at \(outputFile)")
+        print("[swift-java] Generated: \(self.swiftModuleName).java (at \(outputFile))")
       }
     }
   }
@@ -296,40 +296,11 @@ extension Swift2JavaTranslator {
     )
   }
 
-  /// Print a property where we can store the "self" pointer of a class.
-  private func printClassSelfProperty(_ printer: inout CodePrinter, _ decl: ImportedNominalType) {
-    printer.print(
-      """
-      // Pointer to the referred to class instance's "self".
-      private final MemorySegment selfMemorySegment;
-
-      public final MemorySegment $memorySegment() {
-        return this.selfMemorySegment;
-      }
-      """
-    )
-  }
-
-  private func printStatusFlagsField(_ printer: inout CodePrinter, _ decl: ImportedNominalType) {
-    printer.print(
-      """
-      // TODO: make this a flagset integer and/or use a field updater
-      /** Used to track additional state of the underlying object, e.g. if it was explicitly destroyed. */
-      private final AtomicBoolean $state$destroyed = new AtomicBoolean(false);
-
-      @Override
-      public final AtomicBoolean $statusDestroyedFlag() {
-        return this.$state$destroyed;
-      }
-      """
-    )
-  }
-
   private func printClassMemoryLayout(_ printer: inout CodePrinter, _ decl: ImportedNominalType) {
     printer.print(
       """
       private static final GroupLayout $LAYOUT = (GroupLayout) SwiftValueWitnessTable.layoutOfSwiftType(TYPE_METADATA.$memorySegment());
-      public static GroupLayout $LAYOUT() {
+      public static final GroupLayout $LAYOUT() {
           return $LAYOUT;
       }
       public final GroupLayout $layout() {
@@ -473,8 +444,8 @@ extension Swift2JavaTranslator {
     }
   }
 
-  /// Print the calling body what forwards all the parameters to the `methodName`,
-  /// with adding `SwiftArena.ofAuto()` at the last.
+  /// Print the calling body that forwards all the parameters to the `methodName`,
+  /// with adding `SwiftArena.ofAuto()` at the end.
   public func printFuncDowncallMethod(
     _ printer: inout CodePrinter,
     _ decl: ImportedFunc,
@@ -517,6 +488,7 @@ extension Swift2JavaTranslator {
       """
     ) { printer in
       if case .instance(_) =  decl.swiftSignature.selfParameter {
+        // Make sure the object has not been destroyed.
         printer.print("$ensureAlive();")
       }
 
@@ -528,8 +500,8 @@ extension Swift2JavaTranslator {
     }
   }
 
-  /// Print the calling body what forwards all the parameters to the `methodName`,
-  /// with adding `SwiftArena.ofAuto()` at the last.
+  /// Print the calling body that forwards all the parameters to the `methodName`,
+  /// with adding `SwiftArena.ofAuto()` at the end.
   func printParameterForwardingWithAutoSwiftArena(
     _ printer: inout CodePrinter,
     _ methodName: String,
@@ -551,7 +523,7 @@ extension Swift2JavaTranslator {
 
   /// Print the actual downcall to the Swift API.
   ///
-  /// This assumes the all the parameters are passed-in with appropriate names.
+  /// This assumes that all the parameters are passed-in with appropriate names.
   package func printDowncall(
     _ printer: inout CodePrinter,
     _ decl: ImportedFunc,
@@ -563,12 +535,12 @@ extension Swift2JavaTranslator {
       "var mh$ = \(descriptorClassIdentifier).HANDLE;"
     )
 
-    let tempArena = if decl.translatedSignature.requiresTemporaryArena {
-      "(var arena$ = Arena.ofConfined())"
+    let tryHead = if decl.translatedSignature.requiresTemporaryArena {
+      "try(var arena$ = Arena.ofConfined()) {"
     } else {
-      ""
+      "try {"
     }
-    printer.print("try\(tempArena) {");
+    printer.print(tryHead);
     printer.indent();
 
     //===  Part 2: prepare all arguments.
@@ -590,21 +562,22 @@ extension Swift2JavaTranslator {
       downCallArguments.append(lowered)
     }
 
-    // 'self' arguments.
+    // 'self' parameter.
     if let selfParameter = decl.translatedSignature.selfParameter {
       let lowered = selfParameter.conversion.render(&printer, "this")
       downCallArguments.append(lowered)
     }
 
-    // Indirect return value receivers.
+    // Indirect return receivers.
     for outParameter in decl.translatedSignature.result.outParameters {
       let memoryLayout = renderMemoryLayoutValue(for: outParameter.javaType)
 
       let arena = if let className = outParameter.javaType.className,
          self.importedTypes[className] != nil {
-        // Use 'swifArena$' for 'SwiftValue'
+        // Use passed-in 'SwiftArena' for 'SwiftValue'.
         "swiftArena$"
       } else {
+        // Otherwise use the temporary 'Arena'.
         "arena$"
       }
 
@@ -660,8 +633,8 @@ extension Swift2JavaTranslator {
   func renderMemoryLayoutValue(for javaType: JavaType) -> String {
     if let layout = ForeignValueLayout(javaType: javaType) {
       return layout.description
-    } else if case .class(package: _, name: let cutomClass) = javaType {
-      return ForeignValueLayout(customType: cutomClass).description
+    } else if case .class(package: _, name: let customClass) = javaType {
+      return ForeignValueLayout(customType: customClass).description
     } else {
       fatalError("renderMemoryLayoutValue not supported for \(javaType)")
     }

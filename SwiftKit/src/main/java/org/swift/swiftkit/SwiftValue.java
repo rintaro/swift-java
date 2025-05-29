@@ -53,14 +53,15 @@ public abstract class SwiftValue implements SwiftInstance {
         arena.register(this);
     }
 
-    /// Conventience constructor subclasses can call with
-    ///
-    /// ```
-    /// super(() -> { ... return segment; }, arena$)
-    /// ```
-    ///
-    /// @param segmentSupplier a supplier that vends the memory segment
-    /// @param arena the arena this object belongs to. When the arena goes out of scope, this value is destroyed.
+    /**
+     * Convenience constructor subclasses can call like:
+     * {@snippet :
+     * super(() -> { ...; return segment; }, swiftArena$)
+     * }
+     *
+     * @param segmentSupplier Should return the memory segment of the value
+     * @param arena the arena where the supplied segment belongs to. When the arena goes out of scope, this value is destroyed.
+     */
     protected SwiftValue(Supplier<MemorySegment> segmentSupplier, SwiftArena arena) {
         this(segmentSupplier.get(), arena);
     }
