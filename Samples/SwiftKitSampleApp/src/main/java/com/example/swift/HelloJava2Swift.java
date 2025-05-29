@@ -19,7 +19,7 @@ package com.example.swift;
 // Import javakit/swiftkit support libraries
 import org.swift.swiftkit.SwiftArena;
 import org.swift.swiftkit.SwiftKit;
-        import org.swift.swiftkit.SwiftValueLayout;
+import org.swift.swiftkit.SwiftValueLayout;
 
 import java.lang.foreign.Arena;
 import java.lang.foreign.MemoryLayout;

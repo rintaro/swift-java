@@ -48,31 +48,12 @@ final class VariableImportTests {
         """
         private static class swiftjava_FakeModule_MySwiftClass_counterInt$get {
           public static final FunctionDescriptor DESC = FunctionDescriptor.of(
-              /* -> */SWIFT_INT,
-              /* self: */SWIFT_POINTER
+            /* -> */SwiftValueLayout.SWIFT_INT,
+            /* self: */SwiftValueLayout.SWIFT_POINTER
           );
           public static final MemorySegment ADDR =
-              FakeModule.findOrThrow("swiftjava_FakeModule_MySwiftClass_counterInt$get");
+            FakeModule.findOrThrow("swiftjava_FakeModule_MySwiftClass_counterInt$get");
           public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
-        } 
-        """,
-        """
-        /**
-         * Downcall to Swift:
-         * {@snippet lang=swift :
-         * public var counterInt: Int
-         * }
-         */
-        public static long getCounterInt(java.lang.foreign.MemorySegment self$) {
-            var mh$ = swiftjava_FakeModule_MySwiftClass_counterInt$get.HANDLE;
-            try {
-                if (SwiftKit.TRACE_DOWNCALLS) {
-                    SwiftKit.traceDowncall(self$);
-                }
-                return (long) mh$.invokeExact(self$);
-            } catch (Throwable ex$) {
-                throw new AssertionError("should not reach here", ex$);
-            }
         }
         """,
         """
@@ -83,18 +64,23 @@ final class VariableImportTests {
          * }
          */
         public long getCounterInt() {
-          if (this.$state$destroyed.get()) {
-            throw new IllegalStateException("Attempted to call method on already destroyed instance of " + getClass().getSimpleName() + "!");
+          $ensureAlive();
+          var mh$ = swiftjava_FakeModule_MySwiftClass_counterInt$get.HANDLE;
+          try {
+            if (SwiftKit.TRACE_DOWNCALLS) {
+                SwiftKit.traceDowncall(this.$memorySegment());
+            }
+            return (long)mh$.invokeExact(this.$memorySegment());
+          } catch (Throwable ex$) {
+            throw new AssertionError("should not reach here", ex$);
           }
-          return (long) getCounterInt($memorySegment());
         }
         """,
-        
         """
         private static class swiftjava_FakeModule_MySwiftClass_counterInt$set {
           public static final FunctionDescriptor DESC = FunctionDescriptor.ofVoid(
-            /* newValue: */SWIFT_INT,
-            /* self: */SWIFT_POINTER
+            /* newValue: */SwiftValueLayout.SWIFT_INT,
+            /* self: */SwiftValueLayout.SWIFT_POINTER
           );
           public static final MemorySegment ADDR =
             FakeModule.findOrThrow("swiftjava_FakeModule_MySwiftClass_counterInt$set");
@@ -108,30 +94,17 @@ final class VariableImportTests {
          * public var counterInt: Int
          * }
          */
-        public static void setCounterInt(long newValue, java.lang.foreign.MemorySegment self$) {
+        public void setCounterInt(long newValue) {
+          $ensureAlive();
           var mh$ = swiftjava_FakeModule_MySwiftClass_counterInt$set.HANDLE;
           try {
             if (SwiftKit.TRACE_DOWNCALLS) {
-              SwiftKit.traceDowncall(newValue, self$);
+                SwiftKit.traceDowncall(newValue, this.$memorySegment());
             }
-            mh$.invokeExact(newValue, self$);
+            mh$.invokeExact(newValue, this.$memorySegment());
           } catch (Throwable ex$) {
             throw new AssertionError("should not reach here", ex$);
           }
-        }
-        """,
-        """
-        /**
-         * Downcall to Swift:
-         * {@snippet lang=swift :
-         * public var counterInt: Int
-         * }
-         */
-        public void setCounterInt(long newValue) {
-          if (this.$state$destroyed.get()) {
-            throw new IllegalStateException("Attempted to call method on already destroyed instance of " + getClass().getSimpleName() + "!");
-          }
-          setCounterInt(newValue, $memorySegment());
         }
         """,
       ]

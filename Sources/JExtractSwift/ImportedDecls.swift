@@ -61,7 +61,7 @@ public final class ImportedFunc: ImportedDecl, CustomStringConvertible {
     loweredSignature.original
   }
 
-  var kind: SwiftAPIKind {
+  package var kind: SwiftAPIKind {
     loweredSignature.apiKind
   }
 

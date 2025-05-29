@@ -145,10 +145,10 @@ public struct CodePrinter {
 
   // TODO: remove this in real mode, this just helps visually while working on it
   public mutating func printSeparator(_ text: String) {
-    // TODO: actually use the indentationDepth
+    assert(!text.contains(where: \.isNewline))
     print(
       """
-      
+
       // ==== --------------------------------------------------
       // \(text)
 

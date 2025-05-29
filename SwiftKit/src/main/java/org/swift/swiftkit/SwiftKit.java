@@ -447,18 +447,24 @@ public class SwiftKit {
         }
     }
 
-    public static Object toSwiftInt(int value) {
-        if (SwiftValueLayout.SWIFT_INT == ValueLayout.JAVA_LONG) {
-            return Long.valueOf(value);
-        } else {
-            return Integer.valueOf(value);
-        }
-    }
-
+    /**
+     * Convert String to a MemorySegment filled with the C string.
+     */
     public static MemorySegment toCString(String str, SwiftArena arena) {
         return arena.allocateFrom(str);
     }
 
+    /**
+     * Convert Runnable to a MemorySegment which is an upcall stub for it.
+     */
+    public static MemorySegment toUpcallStub(Runnable callback, SwiftArena arena) {
+        FunctionDescriptor descriptor = FunctionDescriptor.ofVoid();
+        MethodHandle handle = MethodHandles.lookup()
+                .findVirtual(Runnable.class, "run", descriptor.toMethodType())
+                .bindTo(callback);
+        return Linker.nativeLinker()
+                .upcallStub(handle, descriptor, arena);
+    }
 
     private static class swift_getTypeName {
 

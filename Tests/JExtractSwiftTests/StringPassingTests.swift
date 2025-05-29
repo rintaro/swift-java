@@ -36,14 +36,29 @@ final class StringPassingTests {
       detectChunkByInitialLines: 1,
       expectedChunks: [
         """
+        /**
+         * Downcall to Swift:
+         * {@snippet lang=swift :
+         * public func writeString(string: String) -> Int
+         * }
+         */
         public static long writeString(java.lang.String string) {
+            return writeString(string, SwiftArena.ofAuto());
+        }
+        /**
+         * Downcall to Swift:
+         * {@snippet lang=swift :
+         * public func writeString(string: String) -> Int
+         * }
+         */
+        public static long writeString(java.lang.String string, SwiftArena arena$) {
             var mh$ = swiftjava___FakeModule_writeString_string.HANDLE;
-            try (var arena = Arena.ofConfined()) {
-                var string$ = arena.allocateFrom(string);
+            try {
+                var string$ = SwiftKit.toCString(string, arena$);
                 if (SwiftKit.TRACE_DOWNCALLS) {
                     SwiftKit.traceDowncall(string$);
                 }
-                return (long) mh$.invokeExact(string$);
+                return (long)mh$.invokeExact(string$);
             } catch (Throwable ex$) {
                 throw new AssertionError("should not reach here", ex$);
             }

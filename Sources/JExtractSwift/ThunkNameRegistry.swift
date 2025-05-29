@@ -39,7 +39,9 @@ package struct ThunkNameRegistry {
     case .setter:
       suffix = "$set"
     default:
-      suffix = ""
+      suffix = decl.swiftSignature.parameters
+        .map { "_" + ($0.argumentLabel ?? "_") }
+        .joined()
     }
 
     let name = if let parent = decl.parentType {

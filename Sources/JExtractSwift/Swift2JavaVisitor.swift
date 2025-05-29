@@ -249,9 +249,9 @@ final class Swift2JavaVisitor: SyntaxVisitor {
       
       log.debug("Record imported variable accessor \(kind == .getter ? "getter" : "setter"):\(node.qualifiedNameForDebug)")
       if let currentType {
-        currentType.methods.append(imported)
+        currentType.variables.append(imported)
       } else {
-        translator.importedGlobalFuncs.append(imported)
+        translator.importedGlobalVariables.append(imported)
       }
     }
 

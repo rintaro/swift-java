@@ -93,7 +93,7 @@ final class FunctionDescriptorTests {
 
   @Test
   func FunctionDescriptor_class_counter_get() throws {
-    try variableAccessorDescriptorTest("counter", .get) { output in
+    try variableAccessorDescriptorTest("counter", .getter) { output in
       assertOutput(
         output,
         expected:
@@ -108,7 +108,7 @@ final class FunctionDescriptorTests {
   }
   @Test
   func FunctionDescriptor_class_counter_set() throws {
-    try variableAccessorDescriptorTest("counter", .set) { output in
+    try variableAccessorDescriptorTest("counter", .setter) { output in
       assertOutput(
         output,
         expected:
@@ -142,7 +142,7 @@ extension FunctionDescriptorTests {
     try st.analyze(file: "/fake/Sample.swiftinterface", text: interfaceFile)
 
     let funcDecl = st.importedGlobalFuncs.first {
-      $0.baseIdentifier == methodIdentifier
+      $0.name == methodIdentifier
     }!
 
     let output = CodePrinter.toString { printer in
@@ -154,7 +154,7 @@ extension FunctionDescriptorTests {
 
   func variableAccessorDescriptorTest(
     _ identifier: String,
-    _ accessorKind: VariableAccessorKind,
+    _ accessorKind: SwiftAPIKind,
     javaPackage: String = "com.example.swift",
     swiftModuleName: String = "SwiftModule",
     logLevel: Logger.Level = .trace,
@@ -168,19 +168,19 @@ extension FunctionDescriptorTests {
 
     try st.analyze(file: "/fake/Sample.swiftinterface", text: interfaceFile)
 
-    let varDecl: ImportedVariable? =
+    let accessorDecl: ImportedFunc? =
       st.importedTypes.values.compactMap {
         $0.variables.first {
-          $0.identifier == identifier
+          $0.name == identifier && $0.kind == accessorKind
         }
       }.first
-    guard let varDecl else {
+    guard let accessorDecl else {
       fatalError("Cannot find descriptor of: \(identifier)")
     }
 
     let getOutput = CodePrinter.toString { printer in
       st.printFunctionDescriptorValue(
-        &printer, varDecl.accessorFunc(kind: accessorKind, symbolTable: st.symbolTable)!)
+        &printer, accessorDecl)
     }
 
     try body(getOutput)

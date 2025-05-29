@@ -413,7 +413,7 @@ struct CdeclLowering {
   }
 }
 
-enum SwiftAPIKind {
+package enum SwiftAPIKind {
   case function
   case initializer
   case getter

@@ -137,7 +137,7 @@ extension Swift2JavaTranslator {
 
       // Initializers
       for initDecl in decl.initializers {
-        printNominalInitializerConstructors(&printer, initDecl)
+        printInitializerDowncallConstructors(&printer, initDecl)
       }
 
       // Properties
@@ -329,7 +329,6 @@ extension Swift2JavaTranslator {
     printer.print(
       """
       private static final GroupLayout $LAYOUT = (GroupLayout) SwiftValueWitnessTable.layoutOfSwiftType(TYPE_METADATA.$memorySegment());
-
       public final GroupLayout $layout() {
           return $LAYOUT;
       }
@@ -337,7 +336,7 @@ extension Swift2JavaTranslator {
     )
   }
 
-  public func printNominalInitializerConstructors(
+  public func printInitializerDowncallConstructors(
     _ printer: inout CodePrinter,
     _ decl: ImportedFunc
   ) {
@@ -350,8 +349,9 @@ extension Swift2JavaTranslator {
       printFunctionHandleValue(&printer)
     }
 
-    printNominalInitializerConstructor(&printer, decl)
-    printNominalInitializerConstructor(&printer, decl, isAutoArenaWrapper: true)
+    // Render the "make the downcall" functions.
+    printInitializerDowncallConstructor(&printer, decl, isAutoArenaWrapper: true)
+    printInitializerDowncallConstructor(&printer, decl)
   }
 
   public func printFunctionDowncallMethods(
@@ -367,147 +367,14 @@ extension Swift2JavaTranslator {
       printFunctionHandleValue(&printer)
     }
 
-    // Render the basic "make the downcall" function
-    printFuncDowncallMethod(&printer, decl)
+    // Render the "make the downcall" functions.
     if decl.translatedSignature.requiresArena {
       printFuncDowncallMethod(&printer, decl, isAutoArenaWrapper: true)
     }
+    printFuncDowncallMethod(&printer, decl)
   }
 
-  func printFunctionAddrValue(
-    _ printer: inout CodePrinter,
-    _ decl: ImportedFunc
-  ) {
-    let thunkName = thunkNameRegistry.functionThunkName(decl: decl)
-    printer.print(
-      """
-      public static final MemorySegment ADDR =
-        \(self.swiftModuleName).findOrThrow("\(thunkName)");
-      """
-    )
-  }
-
-  func printFunctionHandleValue(
-    _ printer: inout CodePrinter
-  ) {
-    printer.print(
-      """
-      public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
-      """
-    )
-  }
-
-  public func printNominalInitializerConstructor(
-    _ printer: inout CodePrinter,
-    _ decl: ImportedFunc,
-    isAutoArenaWrapper: Bool = false
-  ) {
-    guard let className = decl.parentType?.asNominalTypeDeclaration?.name else {
-      return
-    }
-    let modifiers = "public"
-
-    var paramDecls = decl.translatedSignature.parameters
-      .flatMap(\.javaParameters)
-      .map { "\($0.javaType) \($0.parameterName)" }
-      .joined(separator: ", ")
-    assert(decl.translatedSignature.requiresArena, "constructor always require the SwiftArena")
-    if !isAutoArenaWrapper {
-      paramDecls += ", SwiftArena $arena"
-    }
-
-    printer.printBraceBlock(
-      """
-      /**
-       * Create an instance of {@code \(className)}.
-       *
-      \(decl.renderCommentSnippet ?? " *")
-       */
-      \(modifiers) \(className)(\(paramDecls))
-      """
-    ) { printer in
-      if !isAutoArenaWrapper {
-        // The base class 'SwiftValue' has the constructor.
-        //   SwiftValue(Callable<MemorySegment>, SwiftArena)
-        printer.print("super(() -> {")
-        printer.indent()
-        printDowncall(&printer, decl, isConstructor: true)
-        printer.outdent()
-        printer.print("}, $arena);")
-      } else {
-        printParameterForwardingWithAutoArena(&printer, "this", decl)
-      }
-    }
-  }
-
-  public func printFuncDowncallMethod(
-    _ printer: inout CodePrinter,
-    _ decl: ImportedFunc,
-    isAutoArenaWrapper: Bool = false
-  ) {
-    let methodName: String = switch decl.kind {
-    case .getter: "get\(decl.name.toCamelCase)"
-    case .setter: "set\(decl.name.toCamelCase)"
-    case .function: decl.name
-    case .initializer: fatalError("unreachable")
-    }
-
-    var modifiers = "public"
-    switch decl.swiftSignature.selfParameter {
-    case .staticMethod(_), nil:
-      modifiers.append(" static")
-    default:
-      break
-    }
-
-    let returnTy = decl.translatedSignature.result.javaResultType
-
-    var paramDecls = decl.translatedSignature.parameters
-      .flatMap(\.javaParameters)
-      .map { "\($0.javaType) \($0.parameterName)" }
-      .joined(separator: ", ")
-
-    if !isAutoArenaWrapper && decl.translatedSignature.requiresArena {
-      paramDecls += ", SwiftArena $arena"
-    }
-
-    // TODO: we could copy the Swift method's documentation over here, that'd be great UX
-    printer.printBraceBlock(
-      """
-      /**
-       * Downcall to Swift:
-      \(decl.renderCommentSnippet ?? "* ")
-       */
-      \(modifiers) \(returnTy) \(methodName)(\(paramDecls))
-      """
-    ) { printer in
-      if !isAutoArenaWrapper {
-        printDowncall(&printer, decl)
-      } else {
-        printParameterForwardingWithAutoArena(&printer, methodName, decl)
-      }
-    }
-  }
-
-  func printParameterForwardingWithAutoArena(
-    _ printer: inout CodePrinter,
-    _ methodName: String,
-    _ decl: ImportedFunc
-  ) {
-    var arguments = decl.translatedSignature.parameters
-      .flatMap(\.javaParameters)
-      .map { $0.parameterName }
-    arguments.append("SwiftArena.ofAuto()")
-
-    let call = "\(methodName)(\(arguments.joined(separator: ", ")))"
-
-    if decl.translatedSignature.result.javaResultType == .void || decl.kind == .initializer {
-      printer.print("\(call);")
-    } else {
-      printer.print("return \(call);")
-    }
-  }
-
+  /// Print the 'FunctionDescriptor' of the Swift API.
   public func printFunctionDescriptorValue(
     _ printer: inout CodePrinter,
     _ decl: ImportedFunc
@@ -538,7 +405,148 @@ extension Swift2JavaTranslator {
     printer.print(");")
   }
 
-  /// Print the actual downcall to the `decl` API.
+  func printFunctionAddrValue(
+    _ printer: inout CodePrinter,
+    _ decl: ImportedFunc
+  ) {
+    let thunkName = thunkNameRegistry.functionThunkName(decl: decl)
+    printer.print(
+      """
+      public static final MemorySegment ADDR =
+        \(self.swiftModuleName).findOrThrow("\(thunkName)");
+      """
+    )
+  }
+
+  func printFunctionHandleValue(
+    _ printer: inout CodePrinter
+  ) {
+    printer.print(
+      """
+      public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
+      """
+    )
+  }
+
+  public func printInitializerDowncallConstructor(
+    _ printer: inout CodePrinter,
+    _ decl: ImportedFunc,
+    isAutoArenaWrapper: Bool = false
+  ) {
+    guard let className = decl.parentType?.asNominalTypeDeclaration?.name else {
+      return
+    }
+    let modifiers = "public"
+
+    var paramDecls = decl.translatedSignature.parameters
+      .flatMap(\.javaParameters)
+      .map { "\($0.javaType) \($0.parameterName)" }
+      .joined(separator: ", ")
+    assert(decl.translatedSignature.requiresArena, "constructor always require the SwiftArena")
+    if !isAutoArenaWrapper {
+      paramDecls += ", SwiftArena arena$"
+    }
+
+    printer.printBraceBlock(
+      """
+      /**
+       * Create an instance of {@code \(className)}.
+       *
+      \(decl.renderCommentSnippet ?? " *")
+       */
+      \(modifiers) \(className)(\(paramDecls))
+      """
+    ) { printer in
+      if !isAutoArenaWrapper {
+        // Call super constructor `SwiftValue(Supplier <MemorySegment>, SwiftArena)`.
+        printer.print("super(() -> {")
+        printer.indent()
+        printDowncall(&printer, decl, isConstructor: true)
+        printer.outdent()
+        printer.print("}, arena$);")
+      } else {
+        printParameterForwardingWithAutoArena(&printer, "this", decl)
+      }
+    }
+  }
+
+  /// Print the calling body what forwards all the parameters to the `methodName`,
+  /// with adding `SwiftArena.ofAuto()` at the last.
+  public func printFuncDowncallMethod(
+    _ printer: inout CodePrinter,
+    _ decl: ImportedFunc,
+    isAutoArenaWrapper: Bool = false
+  ) {
+    let methodName: String = switch decl.kind {
+    case .getter: "get\(decl.name.toCamelCase)"
+    case .setter: "set\(decl.name.toCamelCase)"
+    case .function: decl.name
+    case .initializer: fatalError("unreachable")
+    }
+
+    var modifiers = "public"
+    switch decl.swiftSignature.selfParameter {
+    case .staticMethod(_), nil:
+      modifiers.append(" static")
+    default:
+      break
+    }
+
+    let returnTy = decl.translatedSignature.result.javaResultType
+
+    var paramDecls = decl.translatedSignature.parameters
+      .flatMap(\.javaParameters)
+      .map { "\($0.javaType) \($0.parameterName)" }
+      .joined(separator: ", ")
+
+    if !isAutoArenaWrapper && decl.translatedSignature.requiresArena {
+      paramDecls += ", SwiftArena arena$"
+    }
+
+    // TODO: we could copy the Swift method's documentation over here, that'd be great UX
+    printer.printBraceBlock(
+      """
+      /**
+       * Downcall to Swift:
+      \(decl.renderCommentSnippet ?? "* ")
+       */
+      \(modifiers) \(returnTy) \(methodName)(\(paramDecls))
+      """
+    ) { printer in
+      if case .instance(_) =  decl.swiftSignature.selfParameter {
+        printer.print("$ensureAlive();")
+      }
+
+      if !isAutoArenaWrapper {
+        printDowncall(&printer, decl)
+      } else {
+        printParameterForwardingWithAutoArena(&printer, methodName, decl)
+      }
+    }
+  }
+
+  /// Print the calling body what forwards all the parameters to the `methodName`,
+  /// with adding `SwiftArena.ofAuto()` at the last.
+  func printParameterForwardingWithAutoArena(
+    _ printer: inout CodePrinter,
+    _ methodName: String,
+    _ decl: ImportedFunc
+  ) {
+    var arguments = decl.translatedSignature.parameters
+      .flatMap(\.javaParameters)
+      .map { $0.parameterName }
+    arguments.append("SwiftArena.ofAuto()")
+
+    let call = "\(methodName)(\(arguments.joined(separator: ", ")))"
+
+    if decl.translatedSignature.result.javaResultType == .void || decl.kind == .initializer {
+      printer.print("\(call);")
+    } else {
+      printer.print("return \(call);")
+    }
+  }
+
+  /// Print the actual downcall to the Swift API.
   ///
   /// This assumes the all the parameters are passed-in with appropriate names.
   package func printDowncall(
@@ -546,14 +554,14 @@ extension Swift2JavaTranslator {
     _ decl: ImportedFunc,
     isConstructor: Bool = false
   ) {
-    printer.print("try {");
-    printer.indent();
-
     //===  Part 1: MethodHandle
     let descriptorClassIdentifier = thunkNameRegistry.functionThunkName(decl: decl)
     printer.print(
-      "var $mh = \(descriptorClassIdentifier).HANDLE;"
+      "var mh$ = \(descriptorClassIdentifier).HANDLE;"
     )
+
+    printer.print("try {");
+    printer.indent();
 
     //===  Part 2: prepare all arguments.
     var downCallArguments: [String] = []
@@ -562,21 +570,29 @@ extension Swift2JavaTranslator {
     for (i, parameter) in decl.translatedSignature.parameters.enumerated() {
       let original = decl.swiftSignature.parameters[i]
       let parameterName = original.parameterName ?? "_\(i)"
-      let lowered = parameter.conversion.render(&printer, parameterName)
-      downCallArguments.append("/*\(parameterName):*/\(lowered)")
+      let converted = parameter.conversion.render(&printer, parameterName)
+      let lowered: String
+      if parameter.conversion.isTrivial {
+        lowered = converted
+      } else {
+        // Store the conversion to a temporary variable.
+        lowered = "\(parameterName)$"
+        printer.print("var \(lowered) = \(converted);")
+      }
+      downCallArguments.append(lowered)
     }
 
     // 'self' arguments.
     if let selfParameter = decl.translatedSignature.selfParameter {
       let lowered = selfParameter.conversion.render(&printer, "this")
-      downCallArguments.append("/*self:*/\(lowered)")
+      downCallArguments.append(lowered)
     }
 
     // Indirect return value receivers.
     for outParameter in decl.translatedSignature.result.outParameters {
       let memoryLayout = renderMemoryLayoutValue(for: outParameter.javaType)
       printer.print(
-        "MemorySegment \(outParameter.parameterName) = $arena.allocate(\(memoryLayout));"
+        "MemorySegment \(outParameter.parameterName) = arena$.allocate(\(memoryLayout));"
       )
       downCallArguments.append(outParameter.parameterName)
     }
@@ -589,7 +605,7 @@ extension Swift2JavaTranslator {
       }
       """
     )
-    let downCall = "$mh.invokeExact(\(downCallArguments.joined(separator: ", ")))"
+    let downCall = "mh$.invokeExact(\(downCallArguments.joined(separator: ", ")))"
 
     //=== Part 4: Convert the return value.
     if isConstructor {
@@ -625,7 +641,13 @@ extension Swift2JavaTranslator {
   }
 
   func renderMemoryLayoutValue(for javaType: JavaType) -> String {
-    "SwiftValueLayout.SWIFT_INT"
+    if let layout = ForeignValueLayout(javaType: javaType) {
+      return layout.description
+    } else if case .class(package: _, name: let cutomClass) = javaType {
+      return ForeignValueLayout(customType: cutomClass).description
+    } else {
+      fatalError("renderMemoryLayoutValue not supported for \(javaType)")
+    }
   }
 
   package func printToStringMethod(
@@ -646,57 +668,32 @@ extension Swift2JavaTranslator {
 
 }
 
-extension CType {
-  var foreignValueLayout: ForeignValueLayout {
-    switch self {
-    case .floating(.double):
-      return .SwiftDouble
-    case .floating(.float):
-      return .SwiftFloat
-    case .integral(.bool):
-      return .SwiftBool
-    case .integral(.ptrdiff_t), .integral(.size_t):
-      return .SwiftInt
-    case .integral(.signed(bits: 8)):
-      return .SwiftInt8
-    case .integral(.signed(bits: 16)):
-      return .SwiftInt16
-    case .integral(.signed(bits: 32)):
-      return .SwiftInt32
-    case .integral(.signed(bits: 64)):
-      return .SwiftInt64
-    case .integral(.unsigned(bits: 8)):
-      return .SwiftInt8
-    case .integral(.unsigned(bits: 16)):
-      return .SwiftInt16
-    case .integral(.unsigned(bits: 32)):
-      return .SwiftInt8
-    case .integral(.unsigned(bits: 64)):
-      return .SwiftInt64
-    case .pointer(_), .function(resultType: _, parameters: _, variadic: _):
-      return .SwiftPointer
-    case .qualified(const: _, volatile: _, type: let inner):
-      return inner.foreignValueLayout
-    case .tag(_):
-      fatalError("unsupported")
-    case .void, .integral(.signed(bits: _)),  .integral(.unsigned(bits: _)):
-      fatalError("unreachable")
-    }
-  }
-}
-
 extension JavaConversionStep {
+  /// Whether the conversion uses SwiftArena.
   var requiresArena: Bool {
     switch self {
     case .pass, .swiftValueSelfSegment, .construct, .cast:
       return false
-    case .upcallStub, .constructSwiftValue:
+    case .constructSwiftValue:
       return true
     case .call(_, let withArena):
       return withArena
     }
   }
 
+  /// Whether if the result evaluation is trivial.
+  ///
+  /// If this is false, it's advised to store it to a variable if it's used multiple times
+  var isTrivial: Bool {
+    switch self {
+    case .pass, .swiftValueSelfSegment:
+      return true
+    case .cast, .construct, .constructSwiftValue, .call:
+      return false
+    }
+  }
+
+  /// Returns the conversion string applied to the placeholder.
   func render(_ printer: inout CodePrinter, _ placeholder: String) -> String {
     switch self {
     case .pass:
@@ -705,21 +702,18 @@ extension JavaConversionStep {
     case .swiftValueSelfSegment:
       return "\(placeholder).$memorySegment()"
 
-    case .upcallStub:
-      return "/*upcallStub*/\(placeholder)"
-
     case .call(let function, let withArena):
-      let arenaArg = withArena ? ", $arena" : ""
+      let arenaArg = withArena ? ", arena$" : ""
       return "\(function)(\(placeholder)\(arenaArg))"
 
     case .constructSwiftValue(let javaType):
-      return "new \(javaType.className!)(\(placeholder), $arena)"
+      return "new \(javaType.className!)(\(placeholder), arena$)"
 
     case .construct(let javaType):
       return "new \(javaType)(\(placeholder))"
 
     case .cast(let javaType):
-      return "(\(javaType)) \(placeholder)"
+      return "(\(javaType))\(placeholder)"
     }
   }
 }

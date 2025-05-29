@@ -203,7 +203,7 @@ struct JavaTranslation {
           return TranslatedParameter(
             javaParameters: [
               JavaParameter(
-                javaType: .int,
+                javaType: .long,
                 parameterName: loweredParam.cdeclParameters[0].parameterName!
               )
             ],
@@ -241,7 +241,7 @@ struct JavaTranslation {
             javaType: JavaType.class(package: "java.lang", name: "Runnable"),
             parameterName: loweredParam.cdeclParameters[0].parameterName!)
         ],
-        conversion: .upcallStub
+        conversion: .call(function: "SwiftKit.toUpcallStub", withArena: true)
       )
 
     case .optional, .function:
@@ -289,9 +289,9 @@ struct JavaTranslation {
           throw JavaTranslationError.unhandledType(swiftType)
         case .int:
           return TranslatedResult(
-            javaResultType: .int,
+            javaResultType: .long,
             outParameters: [],
-            conversion: .cast(.int)
+            conversion: .cast(.long)
           )
         default:
           throw JavaTranslationError.unhandledType(swiftType)
@@ -340,14 +340,11 @@ enum JavaConversionStep {
   // 'value.$memorySegment()'
   case swiftValueSelfSegment
 
-  // Make an upcall stub for a callbacks.
-  case upcallStub
-
   // call specified function using the placeholder as arguments.
-  // If `withArena` is true, `$arena` argument is added.
+  // If `withArena` is true, `arena$` argument is added.
   case call(function: String, withArena: Bool)
 
-  // Call '\(Type)(\(placeholder), $arena)'.
+  // Call '\(Type)(\(placeholder), arena$)'.
   case constructSwiftValue(JavaType)
 
   // Construct the type using the placeholder as arguments.
@@ -357,22 +354,79 @@ enum JavaConversionStep {
   case cast(JavaType)
 }
 
+
 extension JavaType {
   init?(cType: CType) {
     switch cType {
+    case .void: self = .void
+
     case .integral(.bool): self = .boolean
     case .integral(.signed(bits: 8)): self = .byte
     case .integral(.signed(bits: 16)): self = .short
     case .integral(.signed(bits: 32)): self = .int
-    case .integral(.unsigned(bits: 16)): self = .char
-    case .integral(.ptrdiff_t): self = .int
+    case .integral(.signed(bits: 64)): self = .long
+    case .integral(.unsigned(bits: 8)): self = .byte
+    case .integral(.unsigned(bits: 16)): self = .short
+    case .integral(.unsigned(bits: 32)): self = .int
+    case .integral(.unsigned(bits: 64)): self = .long
+
     case .floating(.float): self = .float
     case .floating(.double): self = .double
-    case .void: self = .void
+
+    // FIXME: 32 bit consideration.
+    // The 'FunctionDescriptor' uses 'SWIFT_INT' which relies on the running
+    // machine arch. That means users can't pass Java 'long' values to the
+    // function without casting. But how do we generate code that runs both
+    // 32 and 64 bit machine?
+    case .integral(.ptrdiff_t): self = .long
+    case .integral(.size_t): self = .long
+
     default: return nil
     }
   }
+}
 
+extension CType {
+  var foreignValueLayout: ForeignValueLayout {
+    switch self {
+    case .integral(.bool):
+      return .SwiftBool
+    case .integral(.signed(bits: 8)):
+      return .SwiftInt8
+    case .integral(.signed(bits: 16)):
+      return .SwiftInt16
+    case .integral(.signed(bits: 32)):
+      return .SwiftInt32
+    case .integral(.signed(bits: 64)):
+      return .SwiftInt64
+
+    case .integral(.unsigned(bits: 8)):
+      return .SwiftInt8
+    case .integral(.unsigned(bits: 16)):
+      return .SwiftInt16
+    case .integral(.unsigned(bits: 32)):
+      return .SwiftInt32
+    case .integral(.unsigned(bits: 64)):
+      return .SwiftInt64
+
+    case .floating(.double):
+      return .SwiftDouble
+    case .floating(.float):
+      return .SwiftFloat
+
+    case .integral(.ptrdiff_t), .integral(.size_t):
+      return .SwiftInt
+
+    case .pointer(_), .function(resultType: _, parameters: _, variadic: _):
+      return .SwiftPointer
+    case .qualified(const: _, volatile: _, type: let inner):
+      return inner.foreignValueLayout
+    case .tag(_):
+      fatalError("unsupported")
+    case .void, .integral(.signed(bits: _)),  .integral(.unsigned(bits: _)):
+      fatalError("unreachable")
+    }
+  }
 }
 
 enum JavaTranslationError: Error {

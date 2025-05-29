@@ -63,10 +63,10 @@ final class MethodImportTests {
 
     try st.analyze(file: "Fake.swift", text: class_interfaceFile)
 
-    let funcDecl = st.importedGlobalFuncs.first { $0.baseIdentifier == "helloWorld" }!
+    let funcDecl = st.importedGlobalFuncs.first { $0.name == "helloWorld" }!
 
     let output = CodePrinter.toString { printer in
-      st.printFuncDowncallMethod(&printer, decl: funcDecl, paramPassingStyle: nil)
+      st.printFuncDowncallMethod(&printer, funcDecl)
     }
 
     assertOutput(
@@ -106,11 +106,11 @@ final class MethodImportTests {
     try st.analyze(file: "Fake.swift", text: class_interfaceFile)
 
     let funcDecl = st.importedGlobalFuncs.first {
-      $0.baseIdentifier == "globalTakeInt"
+      $0.name == "globalTakeInt"
     }!
 
     let output = CodePrinter.toString { printer in
-      st.printFuncDowncallMethod(&printer, decl: funcDecl, paramPassingStyle: nil)
+      st.printFuncDowncallMethod(&printer, funcDecl)
     }
 
     assertOutput(
@@ -129,7 +129,6 @@ final class MethodImportTests {
                 if (SwiftKit.TRACE_DOWNCALLS) {
                   SwiftKit.traceDowncall(i);
                 }
-
                 mh$.invokeExact(i);
             } catch (Throwable ex$) {
                 throw new AssertionError("should not reach here", ex$);
@@ -150,11 +149,11 @@ final class MethodImportTests {
     try st.analyze(file: "Fake.swift", text: class_interfaceFile)
 
     let funcDecl = st.importedGlobalFuncs.first {
-      $0.baseIdentifier == "globalTakeIntLongString"
+      $0.name == "globalTakeIntLongString"
     }!
 
     let output = CodePrinter.toString { printer in
-      st.printFuncDowncallMethod(&printer, decl: funcDecl, paramPassingStyle: .memorySegment)
+      st.printFuncDowncallMethod(&printer, funcDecl)
     }
 
     assertOutput(
@@ -168,14 +167,13 @@ final class MethodImportTests {
          * public func globalTakeIntLongString(i32: Int32, l: Int64, s: String)
          * }
          */
-        public static void globalTakeIntLongString(int i32, long l, java.lang.String s) {
+        public static void globalTakeIntLongString(int i32, long l, java.lang.String s, SwiftArena arena$) {
             var mh$ = swiftjava___FakeModule_globalTakeIntLongString_i32_l_s.HANDLE;
-            try (var arena = Arena.ofConfined()) {
-                var s$ = arena.allocateFrom(s);
+            try {
+                var s$ = SwiftKit.toCString(s, arena$);
                 if (SwiftKit.TRACE_DOWNCALLS) {
                     SwiftKit.traceDowncall(i32, l, s$);
                 }
-                
                 mh$.invokeExact(i32, l, s$);
             } catch (Throwable ex$) {
                 throw new AssertionError("should not reach here", ex$);
@@ -186,7 +184,7 @@ final class MethodImportTests {
   }
 
   @Test
-  func method_class_helloMemberFunction_self_memorySegment() throws {
+  func method_class_helloMemberFunction() throws {
     let st = Swift2JavaTranslator(
       javaPackage: "com.example.swift",
       swiftModuleName: "__FakeModule"
@@ -196,140 +194,11 @@ final class MethodImportTests {
     try st.analyze(file: "Fake.swift", text: class_interfaceFile)
 
     let funcDecl: ImportedFunc = st.importedTypes["MySwiftClass"]!.methods.first {
-      $0.baseIdentifier == "helloMemberFunction"
+      $0.name == "helloMemberFunction"
     }!
 
     let output = CodePrinter.toString { printer in
-      st.printFuncDowncallMethod(&printer, decl: funcDecl, paramPassingStyle: .memorySegment)
-    }
-
-    assertOutput(
-      output,
-      expected:
-        """
-        /**
-         * Downcall to Swift:
-         * {@snippet lang=swift :
-         * public func helloMemberFunction()
-         * }
-         */
-        public static void helloMemberFunction(java.lang.foreign.MemorySegment self$) {
-            var mh$ = swiftjava___FakeModule_MySwiftClass_helloMemberFunction.HANDLE;
-            try {
-                if (SwiftKit.TRACE_DOWNCALLS) {
-                    SwiftKit.traceDowncall(self$);
-                }
-                mh$.invokeExact(self$);
-            } catch (Throwable ex$) {
-                throw new AssertionError("should not reach here", ex$);
-            }
-        }
-        """
-    )
-  }
-
-  @Test
-  func method_class_helloMemberFunction_self_wrapper() throws {
-    let st = Swift2JavaTranslator(
-      javaPackage: "com.example.swift",
-      swiftModuleName: "__FakeModule"
-    )
-    st.log.logLevel = .error
-
-    try st.analyze(file: "Fake.swift", text: class_interfaceFile)
-
-    let funcDecl: ImportedFunc = st.importedTypes["MySwiftClass"]!.methods.first {
-      $0.baseIdentifier == "helloMemberInExtension"
-    }!
-
-    let output = CodePrinter.toString { printer in
-      st.printFuncDowncallMethod(&printer, decl: funcDecl, paramPassingStyle: .memorySegment)
-    }
-
-    assertOutput(
-      output,
-      expected:
-        """
-        /**
-         * Downcall to Swift:
-         * {@snippet lang=swift :
-         * public func helloMemberInExtension()
-         * }
-         */
-        public static void helloMemberInExtension(java.lang.foreign.MemorySegment self$) {
-            var mh$ = swiftjava___FakeModule_MySwiftClass_helloMemberInExtension.HANDLE;
-            try {
-                if (SwiftKit.TRACE_DOWNCALLS) {
-                    SwiftKit.traceDowncall(self$);
-                }
-                mh$.invokeExact(self$);
-            } catch (Throwable ex$) {
-                throw new AssertionError("should not reach here", ex$);
-            }
-        }
-        """
-    )
-  }
-
-  @Test
-  func test_method_class_helloMemberFunction_self_wrapper() throws {
-    let st = Swift2JavaTranslator(
-      javaPackage: "com.example.swift",
-      swiftModuleName: "__FakeModule"
-    )
-    st.log.logLevel = .info
-
-    try st.analyze(file: "Fake.swift", text: class_interfaceFile)
-
-    let funcDecl: ImportedFunc = st.importedTypes["MySwiftClass"]!.methods.first {
-      $0.baseIdentifier == "helloMemberFunction"
-    }!
-
-    let output = CodePrinter.toString { printer in
-      st.printFuncDowncallMethod(&printer, decl: funcDecl, paramPassingStyle: .memorySegment)
-    }
-
-    assertOutput(
-      output,
-      expected:
-        """
-        /**
-         * Downcall to Swift:
-         * {@snippet lang=swift :
-         * public func helloMemberFunction()
-         * }
-         */
-        public static void helloMemberFunction(java.lang.foreign.MemorySegment self$) {
-            var mh$ = swiftjava___FakeModule_MySwiftClass_helloMemberFunction.HANDLE;
-            try {
-                if (SwiftKit.TRACE_DOWNCALLS) {
-                    SwiftKit.traceDowncall(self$);
-                }
-                mh$.invokeExact(self$);
-            } catch (Throwable ex$) {
-                throw new AssertionError("should not reach here", ex$);
-            }
-        }
-        """
-    )
-  }
-
-  @Test
-  func method_class_helloMemberFunction_wrapper() throws {
-    let st = Swift2JavaTranslator(
-      javaPackage: "com.example.swift",
-      swiftModuleName: "__FakeModule"
-    )
-    st.log.logLevel = .info
-
-    try st.analyze(file: "Fake.swift", text: class_interfaceFile)
-
-    let funcDecl: ImportedFunc = st.importedTypes["MySwiftClass"]!.methods.first {
-      $0.baseIdentifier == "helloMemberFunction"
-    }!
-
-    let output = CodePrinter.toString { printer in
-      st.printFuncDowncallMethod(&printer, decl: funcDecl, paramPassingStyle: .wrapper)
+      st.printFuncDowncallMethod(&printer, funcDecl)
     }
 
     assertOutput(
@@ -343,17 +212,23 @@ final class MethodImportTests {
          * }
          */
         public void helloMemberFunction() {
-            if (this.$state$destroyed.get()) {
-              throw new IllegalStateException("Attempted to call method on already destroyed instance of " + getClass().getSimpleName() + "!")
+            $ensureAlive()
+            var mh$ = swiftjava___FakeModule_MySwiftClass_helloMemberFunction.HANDLE;
+            try {
+                if (SwiftKit.TRACE_DOWNCALLS) {
+                    SwiftKit.traceDowncall(this.$memorySegment());
+                }
+                mh$.invokeExact(this.$memorySegment());
+            } catch (Throwable ex$) {
+                throw new AssertionError("should not reach here", ex$);
             }
-            helloMemberFunction($memorySegment());
         }
         """
     )
   }
 
   @Test
-  func method_class_makeInt_wrapper() throws {
+  func method_class_makeInt() throws {
     let st = Swift2JavaTranslator(
       javaPackage: "com.example.swift",
       swiftModuleName: "__FakeModule"
@@ -363,11 +238,11 @@ final class MethodImportTests {
     try st.analyze(file: "Fake.swift", text: class_interfaceFile)
 
     let funcDecl: ImportedFunc = st.importedTypes["MySwiftClass"]!.methods.first {
-      $0.baseIdentifier == "makeInt"
+      $0.name == "makeInt"
     }!
 
     let output = CodePrinter.toString { printer in
-      st.printFuncDowncallMethod(&printer, decl: funcDecl, paramPassingStyle: .wrapper)
+      st.printFuncDowncallMethod(&printer, funcDecl)
     }
 
     assertOutput(
@@ -381,11 +256,16 @@ final class MethodImportTests {
          * }
          */
         public long makeInt() {
-          if (this.$state$destroyed.get()) {
-            throw new IllegalStateException("Attempted to call method on already destroyed instance of " + getClass().getSimpleName() + "!")
-          }
-
-          return (long) makeInt($memorySegment());
+            $ensureAlive()
+            var mh$ = swiftjava___FakeModule_MySwiftClass_makeInt.HANDLE;
+            try {
+                if (SwiftKit.TRACE_DOWNCALLS) {
+                    SwiftKit.traceDowncall(this.$memorySegment());
+                }
+                return (long)mh$.invokeExact(this.$memorySegment());
+            } catch (Throwable ex$) {
+                throw new AssertionError("should not reach here", ex$);
+            }
         }
         """
     )
@@ -402,11 +282,12 @@ final class MethodImportTests {
     try st.analyze(file: "Fake.swift", text: class_interfaceFile)
 
     let initDecl: ImportedFunc = st.importedTypes["MySwiftClass"]!.initializers.first {
-      $0.identifier == "init(len:cap:)"
+      $0.name == "init"
     }!
 
     let output = CodePrinter.toString { printer in
-      st.printNominalInitializerConstructors(&printer, initDecl, parentName: initDecl.parent!)
+      st.printInitializerDowncallConstructor(&printer, initDecl, isAutoArenaWrapper: true)
+      st.printInitializerDowncallConstructor(&printer, initDecl)
     }
 
     assertOutput(
@@ -421,31 +302,29 @@ final class MethodImportTests {
          * }
          */
         public MySwiftClass(long len, long cap) {
-          this(/*arena=*/null, len, cap);
+          this(len, cap, SwiftArena.ofAuto());
         }
         /**
          * Create an instance of {@code MySwiftClass}.
-         * This instance is managed by the passed in {@link SwiftArena} and may not outlive the arena's lifetime.
          *
          * {@snippet lang=swift :
          * public init(len: Swift.Int, cap: Swift.Int)
          * }
          */
-        public MySwiftClass(SwiftArena arena, long len, long cap) {
-          var mh$ = swiftjava___FakeModule_MySwiftClass_init_len_cap.HANDLE;
-          try {
-              if (SwiftKit.TRACE_DOWNCALLS) {
-                SwiftKit.traceDowncall(len, cap);
-              }
-              this.selfMemorySegment = (MemorySegment) mh$.invokeExact(
-                  len, cap
-              );
-              if (arena != null) {
-                  arena.register(this);
-              }
-          } catch (Throwable ex$) {
-              throw new AssertionError("should not reach here", ex$);
-          }
+        public MySwiftClass(long len, long cap, SwiftArena arena$) {
+            super(() -> {
+                var mh$ = swiftjava___FakeModule_MySwiftClass_init_len_cap.HANDLE;
+                try {
+                    MemorySegment _result = arena$.allocate(MySwiftClass.$layout());
+                    if (SwiftKit.TRACE_DOWNCALLS) {
+                        SwiftKit.traceDowncall(len, cap, _result);
+                    }
+                    mh$.invokeExact(len, cap, _result);
+                    return _result;
+                } catch (Throwable ex$) {
+                    throw new AssertionError("should not reach here", ex$);
+                }
+            }, arena$);
         }
         """
     )
@@ -462,11 +341,12 @@ final class MethodImportTests {
     try st.analyze(file: "Fake.swift", text: class_interfaceFile)
 
     let initDecl: ImportedFunc = st.importedTypes["MySwiftStruct"]!.initializers.first {
-      $0.identifier == "init(len:cap:)"
+      $0.name == "init"
     }!
 
     let output = CodePrinter.toString { printer in
-      st.printNominalInitializerConstructors(&printer, initDecl, parentName: initDecl.parent!)
+      st.printInitializerDowncallConstructor(&printer, initDecl, isAutoArenaWrapper: true)
+      st.printInitializerDowncallConstructor(&printer, initDecl)
     }
 
     assertOutput(
@@ -481,36 +361,30 @@ final class MethodImportTests {
          * }
          */
         public MySwiftStruct(long len, long cap) {
-          this(/*arena=*/null, len, cap);
+          this(len, cap, SwiftArena.ofAuto());
         }
         /**
          * Create an instance of {@code MySwiftStruct}.
-         * This instance is managed by the passed in {@link SwiftArena} and may not outlive the arena's lifetime.
          *
          * {@snippet lang=swift :
          * public init(len: Swift.Int, cap: Swift.Int)
          * }
          */
-
-        public MySwiftStruct(SwiftArena arena, long len, long cap) {
-          var mh$ = swiftjava___FakeModule_MySwiftStruct_init_len_cap.HANDLE;
-          try {
-              if (SwiftKit.TRACE_DOWNCALLS) {
-                SwiftKit.traceDowncall(len, cap);
-              }
-              this.selfMemorySegment = arena.allocate($layout());
-              mh$.invokeExact(
-                  len, cap,
-                  /* indirect return buffer */this.selfMemorySegment
-              );
-              if (arena != null) {
-                  arena.register(this);
-              }
-          } catch (Throwable ex$) {
-              throw new AssertionError("should not reach here", ex$);
-          }
+        public MySwiftStruct(long len, long cap, SwiftArena arena$) {
+            super(() -> {
+                var mh$ = swiftjava___FakeModule_MySwiftStruct_init_len_cap.HANDLE;
+                try {
+                    MemorySegment _result = arena$.allocate(MySwiftStruct.$layout());
+                    if (SwiftKit.TRACE_DOWNCALLS) {
+                        SwiftKit.traceDowncall(len, cap, _result);
+                    }
+                    mh$.invokeExact(len, cap, _result);
+                    return _result;
+                } catch (Throwable ex$) {
+                    throw new AssertionError("should not reach here", ex$);
+                }
+            }, arena$);
         }
-        """
-    )
+        """    )
   }
 }

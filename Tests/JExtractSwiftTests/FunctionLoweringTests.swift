@@ -27,7 +27,7 @@ final class FunctionLoweringTests {
       expectedCDecl: """
       @_cdecl("c_f")
       public func c_f(_ x: Int, _ y: Float, _ z_pointer: UnsafeRawPointer, _ z_count: Int) {
-        f(x: x,y: y,z: UnsafeBufferPointer<Bool>(start: z_pointer.assumingMemoryBound(to: Bool.self),count: z_count))
+        f(x: x, y: y, z: UnsafeBufferPointer<Bool>(start: z_pointer.assumingMemoryBound(to: Bool.self),count: z_count))
       }
       """,
       expectedCFunction: "void c_f(ptrdiff_t x, float y, const void *z_pointer, ptrdiff_t z_count)"
@@ -42,7 +42,7 @@ final class FunctionLoweringTests {
       expectedCDecl: """
       @_cdecl("c_f")
       public func c_f(_ t_0: Int, _ t_1_0: Float, _ t_1_1: Double, _ z: UnsafePointer<Int>) -> Int {
-        return f(t: (t_0,(t_1_0,t_1_1)),z: z)
+        return f(t: (t_0,(t_1_0,t_1_1)), z: z)
       }
       """,
       expectedCFunction: "ptrdiff_t c_f(ptrdiff_t t_0, float t_1_0, double t_1_1, const ptrdiff_t *z)"
@@ -76,7 +76,7 @@ final class FunctionLoweringTests {
       expectedCDecl: """
       @_cdecl("c_shift")
       public func c_shift(_ point: UnsafeMutableRawPointer, _ delta_0: Double, _ delta_1: Double) {
-        shift(point: &point.assumingMemoryBound(to: Point.self).pointee,by: (delta_0,delta_1))
+        shift(point: &point.assumingMemoryBound(to: Point.self).pointee, by: (delta_0,delta_1))
       }
       """,
       expectedCFunction: "void c_shift(void *point, double delta_0, double delta_1)"

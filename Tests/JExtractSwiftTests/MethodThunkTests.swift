@@ -58,13 +58,13 @@ final class MethodThunkTests {
         """
         @_cdecl("swiftjava_FakeModule_globalFunc_a_b")
         public func swiftjava_FakeModule_globalFunc_a_b(_ a: Int32, _ b: Int64) {
-          globalFunc(a: a,b: b)
+          globalFunc(a: a, b: b)
         }
         """,
         """
         @_cdecl("swiftjava_FakeModule_globalFunc_a_b$1")
         public func swiftjava_FakeModule_globalFunc_a_b$1(_ a: Double, _ b: Int64) {
-          globalFunc(a: a,b: b)
+          globalFunc(a: a, b: b)
         }
         """,
         """
@@ -87,7 +87,7 @@ final class MethodThunkTests {
         """,
         """
         @_cdecl("swiftjava_FakeModule_MyClass_property$set")
-        public func swiftjava_FakeModule_MyClass_property$set(_ newValue: Int, _ self: UnsafeMutableRawPointer) {
+        public func swiftjava_FakeModule_MyClass_property$set(_ newValue: Int, _ self: UnsafeRawPointer) {
           self.assumingMemoryBound(to: MyClass.self).pointee.property = newValue
         }
         """
