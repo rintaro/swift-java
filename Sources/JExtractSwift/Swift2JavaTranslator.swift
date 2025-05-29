@@ -120,61 +120,8 @@ extension Swift2JavaTranslator {
   }
 
   package func prepareForTranslation() {
-    // First, register top-level and nested nominal types to the symbol table.
-    for input in inputs {
-      symbolTable.addNominalTypeDeclarations(input.syntax)
-    }
-
-    // Register nested nominal in extensions to the symbol table.
-    // The work queue is required because, the extending type might be declared
-    // in another extension that hasn't been processed. E.g.:
-    //
-    //   extension Outer.Inner { struct Deeper {} }
-    //   extension Outer { struct Inner {} }
-    //   struct Outer {}
-    //
-    func handleExtension(_ extensionDecl: ExtensionDeclSyntax) -> Bool {
-      // Try to resolve the type referenced by this extension declaration.
-      // If it fails, we'll try again later.
-      guard let extendedType = try? SwiftType(extensionDecl.extendedType, symbolTable: self.symbolTable) else {
-        return false
-      }
-      guard let extendedNominal = extendedType.asNominalTypeDeclaration else {
-        // Extending type was not a nominal type. Ignore it.
-        return true
-      }
-
-      // We have successfully resolved the extended type. Record it and
-      // remove the extension from the list of unresolved extensions.
-      self.symbolTable.parsedModule.addExtension(extensionDecl, extending: extendedNominal)
-      return true
-    }
-
-    var unresolvedExtensions: [ExtensionDeclSyntax] = []
-    for input in inputs {
-      // Find extensions.
-      for statement in input.syntax.statements {
-        // We only care about declarations.
-        if case .decl(let decl) = statement.item,
-          let extNode = decl.as(ExtensionDeclSyntax.self) {
-          let resolved = handleExtension(extNode)
-          if !resolved {
-            unresolvedExtensions.append(extNode)
-          }
-        }
-      }
-    }
-    
-    while unresolvedExtensions.isEmpty {
-      let numExtensionsBefore = unresolvedExtensions.count
-      unresolvedExtensions.removeAll(where: handleExtension(_:))
-
-      // If we didn't resolve anything, we're done.
-      if numExtensionsBefore == unresolvedExtensions.count {
-        break
-      }
-      assert(numExtensionsBefore > unresolvedExtensions.count)
-    }
+    /// Setup the symbol table.
+    symbolTable.setup(inputs.map({ $0.syntax }))
   }
 }
 

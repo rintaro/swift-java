@@ -73,23 +73,25 @@ struct TranslatedFunctionSignature {
 }
 
 extension TranslatedFunctionSignature {
-  /// Whether if the down-calling requires "Arena" or not.
-  ///
-  /// This is true if the result is returned indirectly.
-  var requiresArena: Bool {
-    if loweredSignature.result.hasIndirectResult {
+  /// Whether or not if the down-calling requires temporary "Arena" which is
+  /// only used during the down-calling.
+  var requiresTemporaryArena: Bool {
+    if self.parameters.contains(where: { $0.conversion.requiresTemporaryArena }) {
       return true
     }
-    if self.parameters.contains(where: { $0.conversion.requiresArena }) {
+    if self.selfParameter?.conversion.requiresTemporaryArena ?? false {
       return true
     }
-    if self.selfParameter?.conversion.requiresArena ?? false {
-      return true
-    }
-    if self.result.conversion.requiresArena {
+    if self.result.conversion.requiresTemporaryArena {
       return true
     }
     return false
+  }
+
+  /// Whether if the down-calling requires "SwiftArena" or not, which should be
+  /// passed-in by the API caller. This is needed if the API returns a `SwiftValue`
+  var requiresSwiftArena: Bool {
+    return self.result.conversion.requiresSwiftArena
   }
 }
 

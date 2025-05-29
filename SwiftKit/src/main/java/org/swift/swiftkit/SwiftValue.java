@@ -40,7 +40,7 @@ public abstract class SwiftValue implements SwiftInstance {
 
     public final void $ensureAlive() {
         if (this.$state$destroyed.get()) {
-            throw new IllegalStateException("Attempted to call method on already destroyed instance of " + getClass().getSimpleName() + "!")
+            throw new IllegalStateException("Attempted to call method on already destroyed instance of " + getClass().getSimpleName() + "!");
         }
     }
 

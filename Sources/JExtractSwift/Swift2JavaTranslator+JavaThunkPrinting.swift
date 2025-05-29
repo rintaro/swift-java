@@ -329,6 +329,9 @@ extension Swift2JavaTranslator {
     printer.print(
       """
       private static final GroupLayout $LAYOUT = (GroupLayout) SwiftValueWitnessTable.layoutOfSwiftType(TYPE_METADATA.$memorySegment());
+      public static GroupLayout $LAYOUT() {
+          return $LAYOUT;
+      }
       public final GroupLayout $layout() {
           return $LAYOUT;
       }
@@ -368,7 +371,7 @@ extension Swift2JavaTranslator {
     }
 
     // Render the "make the downcall" functions.
-    if decl.translatedSignature.requiresArena {
+    if decl.translatedSignature.requiresSwiftArena {
       printFuncDowncallMethod(&printer, decl, isAutoArenaWrapper: true)
     }
     printFuncDowncallMethod(&printer, decl)
@@ -442,9 +445,9 @@ extension Swift2JavaTranslator {
       .flatMap(\.javaParameters)
       .map { "\($0.javaType) \($0.parameterName)" }
       .joined(separator: ", ")
-    assert(decl.translatedSignature.requiresArena, "constructor always require the SwiftArena")
+    assert(decl.translatedSignature.requiresSwiftArena, "constructor always require the SwiftArena")
     if !isAutoArenaWrapper {
-      paramDecls += ", SwiftArena arena$"
+      paramDecls += ", SwiftArena swiftArena$"
     }
 
     printer.printBraceBlock(
@@ -463,9 +466,9 @@ extension Swift2JavaTranslator {
         printer.indent()
         printDowncall(&printer, decl, isConstructor: true)
         printer.outdent()
-        printer.print("}, arena$);")
+        printer.print("}, swiftArena$);")
       } else {
-        printParameterForwardingWithAutoArena(&printer, "this", decl)
+        printParameterForwardingWithAutoSwiftArena(&printer, "this", decl)
       }
     }
   }
@@ -499,8 +502,8 @@ extension Swift2JavaTranslator {
       .map { "\($0.javaType) \($0.parameterName)" }
       .joined(separator: ", ")
 
-    if !isAutoArenaWrapper && decl.translatedSignature.requiresArena {
-      paramDecls += ", SwiftArena arena$"
+    if !isAutoArenaWrapper && decl.translatedSignature.requiresSwiftArena {
+      paramDecls += ", SwiftArena swiftArena$"
     }
 
     // TODO: we could copy the Swift method's documentation over here, that'd be great UX
@@ -520,14 +523,14 @@ extension Swift2JavaTranslator {
       if !isAutoArenaWrapper {
         printDowncall(&printer, decl)
       } else {
-        printParameterForwardingWithAutoArena(&printer, methodName, decl)
+        printParameterForwardingWithAutoSwiftArena(&printer, methodName, decl)
       }
     }
   }
 
   /// Print the calling body what forwards all the parameters to the `methodName`,
   /// with adding `SwiftArena.ofAuto()` at the last.
-  func printParameterForwardingWithAutoArena(
+  func printParameterForwardingWithAutoSwiftArena(
     _ printer: inout CodePrinter,
     _ methodName: String,
     _ decl: ImportedFunc
@@ -560,7 +563,12 @@ extension Swift2JavaTranslator {
       "var mh$ = \(descriptorClassIdentifier).HANDLE;"
     )
 
-    printer.print("try {");
+    let tempArena = if decl.translatedSignature.requiresTemporaryArena {
+      "(var arena$ = Arena.ofConfined())"
+    } else {
+      ""
+    }
+    printer.print("try\(tempArena) {");
     printer.indent();
 
     //===  Part 2: prepare all arguments.
@@ -591,8 +599,17 @@ extension Swift2JavaTranslator {
     // Indirect return value receivers.
     for outParameter in decl.translatedSignature.result.outParameters {
       let memoryLayout = renderMemoryLayoutValue(for: outParameter.javaType)
+
+      let arena = if let className = outParameter.javaType.className,
+         self.importedTypes[className] != nil {
+        // Use 'swifArena$' for 'SwiftValue'
+        "swiftArena$"
+      } else {
+        "arena$"
+      }
+
       printer.print(
-        "MemorySegment \(outParameter.parameterName) = arena$.allocate(\(memoryLayout));"
+        "MemorySegment \(outParameter.parameterName) = \(arena).allocate(\(memoryLayout));"
       )
       downCallArguments.append(outParameter.parameterName)
     }
@@ -670,12 +687,20 @@ extension Swift2JavaTranslator {
 
 extension JavaConversionStep {
   /// Whether the conversion uses SwiftArena.
-  var requiresArena: Bool {
+  var requiresSwiftArena: Bool {
     switch self {
-    case .pass, .swiftValueSelfSegment, .construct, .cast:
+    case .pass, .swiftValueSelfSegment, .construct, .cast, .call:
       return false
     case .constructSwiftValue:
       return true
+    }
+  }
+
+  /// Whether the conversion uses temporary Arena.
+  var requiresTemporaryArena: Bool {
+    switch self {
+    case .pass, .swiftValueSelfSegment, .construct, .constructSwiftValue, .cast:
+      return false
     case .call(_, let withArena):
       return withArena
     }
@@ -707,7 +732,7 @@ extension JavaConversionStep {
       return "\(function)(\(placeholder)\(arenaArg))"
 
     case .constructSwiftValue(let javaType):
-      return "new \(javaType.className!)(\(placeholder), arena$)"
+      return "new \(javaType.className!)(\(placeholder), swiftArena$)"
 
     case .construct(let javaType):
       return "new \(javaType)(\(placeholder))"

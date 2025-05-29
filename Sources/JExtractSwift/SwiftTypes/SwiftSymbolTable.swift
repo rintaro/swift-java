@@ -48,6 +48,65 @@ package class SwiftSymbolTable {
   func addImportedModule(symbolTable: SwiftModuleSymbolTable) {
     importedModules.append(symbolTable)
   }
+}
+
+extension SwiftSymbolTable {
+  func setup(_ sourceFiles: some Collection<SourceFileSyntax>) {
+    // First, register top-level and nested nominal types to the symbol table.
+    for sourceFile in sourceFiles {
+      self.addNominalTypeDeclarations(sourceFile)
+    }
+
+    // Register nested nominal in extensions to the symbol table.
+    func handleExtension(_ extensionDecl: ExtensionDeclSyntax) -> Bool {
+      // Try to resolve the type referenced by this extension declaration.
+      // If it fails, we'll try again later.
+      guard let extendedType = try? SwiftType(extensionDecl.extendedType, symbolTable: self) else {
+        return false
+      }
+      guard let extendedNominal = extendedType.asNominalTypeDeclaration else {
+        // Extending type was not a nominal type. Ignore it.
+        return true
+      }
+
+      // We have successfully resolved the extended type. Record it and
+      // remove the extension from the list of unresolved extensions.
+      self.parsedModule.addExtension(extensionDecl, extending: extendedNominal)
+      return true
+    }
+
+    // The work queue is required because, the extending type might be declared
+    // in another extension that hasn't been processed. E.g.:
+    //
+    //   extension Outer.Inner { struct Deeper {} }
+    //   extension Outer { struct Inner {} }
+    //   struct Outer {}
+    //
+    var unresolvedExtensions: [ExtensionDeclSyntax] = []
+    for sourceFile in sourceFiles {
+      // Find extensions.
+      for statement in sourceFile.statements {
+        // We only care about extensions at top-level.
+        if case .decl(let decl) = statement.item, let extNode = decl.as(ExtensionDeclSyntax.self) {
+          let resolved = handleExtension(extNode)
+          if !resolved {
+            unresolvedExtensions.append(extNode)
+          }
+        }
+      }
+    }
+
+    while !unresolvedExtensions.isEmpty {
+      let numExtensionsBefore = unresolvedExtensions.count
+      unresolvedExtensions.removeAll(where: handleExtension(_:))
+
+      // If we didn't resolve anything, we're done.
+      if numExtensionsBefore == unresolvedExtensions.count {
+        break
+      }
+      assert(numExtensionsBefore > unresolvedExtensions.count)
+    }
+  }
 
   func addNominalTypeDeclarations(_ sourceFile: SourceFileSyntax) {
     // Find top-level nominal type declarations.

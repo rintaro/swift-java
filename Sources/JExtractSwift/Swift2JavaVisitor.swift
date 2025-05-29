@@ -195,7 +195,7 @@ final class Swift2JavaVisitor: SyntaxVisitor {
       return .skipChildren
     }
 
-    var imported = ImportedFunc(
+    let imported = ImportedFunc(
       module: translator.swiftModuleName,
       swiftDecl: node,
       name: node.name.text,
@@ -240,7 +240,7 @@ final class Swift2JavaVisitor: SyntaxVisitor {
         throw error
       }
 
-      var imported = ImportedFunc(
+      let imported = ImportedFunc(
         module: translator.swiftModuleName,
         swiftDecl: node,
         name: varName,
@@ -293,7 +293,7 @@ final class Swift2JavaVisitor: SyntaxVisitor {
       self.log.debug("Failed to translate: \(node.qualifiedNameForDebug); \(error)")
       return .skipChildren
     }
-    var imported = ImportedFunc(
+    let imported = ImportedFunc(
       module: translator.swiftModuleName,
       swiftDecl: node,
       name: "init",
