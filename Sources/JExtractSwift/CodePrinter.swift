@@ -68,14 +68,14 @@ public struct CodePrinter {
     }
   }
 
-  public mutating func printTypeDecl(
-    _ text: Any,
+  public mutating func printBraceBlock(
+    _ header: Any,
     function: String = #function,
     file: String = #fileID,
     line: UInt = #line,
     body: (inout CodePrinter) throws -> ()
   ) rethrows {
-    print("\(text) {")
+    print("\(header) {")
     indent()
     try body(&self)
     outdent()

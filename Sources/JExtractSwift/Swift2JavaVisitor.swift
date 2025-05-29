@@ -360,7 +360,7 @@ private func supportedAccessorKinds(varDecl: VariableDeclSyntax, binding: Patter
         case .keyword(.get), .keyword(._read), .keyword(.unsafeAddress):
           hasGetter = true
         case .keyword(.set), .keyword(._modify), .keyword(.unsafeMutableAddress):
-          hasGetter = true
+          hasSetter = true
         default: // Ignore willSet/didSet and unknown accessors.
           break
         }
@@ -373,7 +373,7 @@ private func supportedAccessorKinds(varDecl: VariableDeclSyntax, binding: Patter
       case (false, false): break
       }
     }
-
-    return [.get, .set]
   }
+
+  return [.get, .set]
 }

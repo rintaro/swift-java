@@ -51,19 +51,15 @@ enum SwiftType: Equatable {
     }
   }
 
-  /// Reference type where the mutations don't require 'inout' convention.
+  /// Reference type
+  ///
+  ///  * Mutations don't require 'inout' convention.
+  ///  * The value is a pointer of the instance data,
   var isReferenceType: Bool {
     switch self {
     case .nominal(let nominal):
-      let nominalTypeDecl = nominal.nominalTypeDecl
-      switch nominalTypeDecl.kind {
-      case .actor, .class:
-        return true
-      case .enum, .struct, .protocol:
-        return false
-      }
+      return nominal.nominalTypeDecl.isReferenceType
     case .metatype, .function:
-      // These can't be mutated, but...
       return true
     case .optional, .tuple:
       return false
@@ -293,4 +289,15 @@ extension SwiftType {
     }
     return "\(type).self"
   }
+}
+
+enum TypeTranslationError: Error {
+  /// We haven't yet implemented support for this type.
+  case unimplementedType(TypeSyntax)
+
+  /// Missing generic arguments.
+  case missingGenericArguments(TypeSyntax)
+
+  /// Unknown nominal type.
+  case unknown(TypeSyntax)
 }

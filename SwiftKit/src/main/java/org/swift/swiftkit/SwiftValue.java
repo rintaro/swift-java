@@ -14,6 +14,48 @@
 
 package org.swift.swiftkit;
 
-public interface SwiftValue extends SwiftInstance {
-    SwiftAnyType $swiftType();
+import java.lang.foreign.MemorySegment;
+import java.util.concurrent.Callable;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.Supplier;
+
+public abstract class SwiftValue implements SwiftInstance {
+    /// Pointer to the "self".
+    private final MemorySegment selfMemorySegment;
+
+    public final MemorySegment $memorySegment() {
+        return this.selfMemorySegment;
+    }
+
+    // TODO: make this a flagset integer and/or use a field updater
+    /** Used to track additional state of the underlying object, e.g. if it was explicitly destroyed. */
+    private final AtomicBoolean $state$destroyed = new AtomicBoolean(false);
+
+    @Override
+    public final AtomicBoolean $statusDestroyedFlag() {
+        return this.$state$destroyed;
+    }
+
+    /**
+     * @param segment the memory segment.
+     * @param arena the arena this object belongs to. When the arena goes out of scope, this value is destroyed.
+     */
+    public SwiftValue(MemorySegment segment, SwiftArena arena) {
+        this.selfMemorySegment = segment;
+        arena.register(this);
+    }
+
+    /// Conventience constructor subclasses can call with
+    ///
+    /// ```
+    /// super(() -> { ... return segment; }, $arena)
+    /// ```
+    ///
+    /// @param segmentSupplier a supplier that vends the memory segment
+    /// @param arena the arena this object belongs to. When the arena goes out of scope, this value is destroyed.
+    protected SwiftValue(Supplier<MemorySegment> segmentSupplier, SwiftArena arena) {
+        this(segmentSupplier.get(), arena);
+    }
+
+    public abstract SwiftAnyType $swiftType();
 }

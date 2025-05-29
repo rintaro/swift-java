@@ -31,6 +31,10 @@ package class ImportedNominalType: ImportedDecl {
   init(swiftNominal: SwiftNominalTypeDeclaration) {
     self.swiftNominal = swiftNominal
   }
+
+  var javaClassName: String {
+    swiftNominal.name
+  }
 }
 
 public final class ImportedFunc: ImportedDecl, CustomStringConvertible {
@@ -67,11 +71,11 @@ public final class ImportedFunc: ImportedDecl, CustomStringConvertible {
     }
     switch selfParameter {
     case .instance(let parameter):
-      return nil
-    case .staticMethod(_):
-      return nil
-    case .initializer(_):
-      return nil
+      return parameter.type
+    case .staticMethod(let type):
+      return type
+    case .initializer(let type):
+      return type
     }
   }
 

@@ -62,7 +62,7 @@ func assertLoweredFunction(
 
   let loweredCDecl = loweredFunction.cdeclThunk(
     cName: "c_\(swiftFunctionName)",
-    swiftFunctionName: swiftFunctionName,
+    swiftAPIName: swiftFunctionName,
     stdlibTypes: translator.swiftStdlibTypes
   )
 
@@ -79,6 +79,7 @@ func assertLoweredFunction(
   let cFunction = try loweredFunction.cFunctionDecl(
     cName: "c_\(swiftFunctionName)"
   )
+
   #expect(
     cFunction.description == expectedCFunction,
     sourceLocation: Testing.SourceLocation(

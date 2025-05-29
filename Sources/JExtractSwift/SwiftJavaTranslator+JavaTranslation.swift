@@ -5,6 +5,8 @@
 //  Created by Rintaro Ishizaki on 5/25/25.
 //
 
+import JavaTypes
+
 extension Swift2JavaTranslator {
   func translate(
     swiftSignature: SwiftFunctionSignature,
@@ -19,36 +21,6 @@ extension Swift2JavaTranslator {
     return translated
   }
 }
-
-struct JavaThunkPrinter {
-  var printer: CodePrinter
-
-  mutating func render(
-    forFunction functionSignature: TranslatedFunctionSignature,
-    name: String
-  ) throws {
-    try printer.printTypeDecl("private final class \(name)") { printer in
-      printer.print("static FunctionDescriptor DESC = ", .continue);
-      try printFunctionDescriptorValue(&printer, forFunction: functionSignature.loweredSignature)
-    }
-  }
-
-  func printFunctionDescriptorValue(
-    _ printer: inout CodePrinter,
-    forFunction loweredSignature: LoweredFunctionSignature,
-  ) throws {
-    let resultType = try CType(cdeclType: loweredSignature.result.cdeclResultType)
-    let loweredParams = loweredSignature.allLoweredParameters
-    let isEmptyParam = loweredParams.isEmpty
-
-    if resultType.isVoid {
-
-    }
-  }
-}
-
-
-import JavaTypes
 
 /// Represent a parameter in Java code.
 struct JavaParameter {
@@ -87,6 +59,7 @@ struct TranslatedParameter {
 
 struct TranslatedResult {
   var javaResultType: JavaType
+  var outParameters: [JavaParameter]
   var conversion: JavaConversionStep
 }
 
@@ -104,7 +77,19 @@ extension TranslatedFunctionSignature {
   ///
   /// This is true if the result is returned indirectly.
   var requiresArena: Bool {
-    return loweredSignature.result.hasIndirectResult
+    if loweredSignature.result.hasIndirectResult {
+      return true
+    }
+    if self.parameters.contains(where: { $0.conversion.requiresArena }) {
+      return true
+    }
+    if self.selfParameter?.conversion.requiresArena ?? false {
+      return true
+    }
+    if self.result.conversion.requiresArena {
+      return true
+    }
+    return false
   }
 }
 
@@ -121,7 +106,11 @@ struct JavaTranslation {
       guard case .instance(let swiftSelf) = loweredFunctionSignature.original.selfParameter! else {
         fatalError("unreachable")
       }
-      selfParameter = try self.translate(loweredParam: loweredSelf, swiftParam: swiftSelf)
+      selfParameter = try self.translate(
+        loweredParam: loweredSelf,
+        swiftParam: swiftSelf,
+        parameterName: swiftSelf.parameterName ?? "self"
+      )
     } else {
       selfParameter = nil
     }
@@ -130,7 +119,12 @@ struct JavaTranslation {
     let parameters: [TranslatedParameter] = try loweredFunctionSignature.parameters.enumerated()
       .map { (idx, loweredParam) in
         let swiftParam = loweredFunctionSignature.original.parameters[idx]
-        return try self.translate(loweredParam: loweredParam, swiftParam: swiftParam)
+        let parameterName = swiftParam.parameterName ?? "_\(idx)"
+        return try self.translate(
+          loweredParam: loweredParam,
+          swiftParam: swiftParam,
+          parameterName: parameterName
+        )
       }
 
     // Result.
@@ -149,7 +143,8 @@ struct JavaTranslation {
 
   func translate(
     loweredParam: LoweredParameter,
-    swiftParam: SwiftParameter
+    swiftParam: SwiftParameter,
+    parameterName: String
   ) throws -> TranslatedParameter {
     // If there is a 1:1 mapping between this Swift type and a C type.z
     if let cType = try? CType(cdeclType: swiftParam.type) {
@@ -161,7 +156,7 @@ struct JavaTranslation {
               parameterName: loweredParam.cdeclParameters[0].parameterName!
             )
           ],
-          conversion: .identity
+          conversion: .pass
         )
       }
     }
@@ -201,7 +196,18 @@ struct JavaTranslation {
                 parameterName: loweredParam.cdeclParameters[0].parameterName!
               )
             ],
-            conversion: .swiftkitBuiltin
+            conversion: .call(function: "SwiftKit.toCString", withArena: true)
+          )
+
+        case .int:
+          return TranslatedParameter(
+            javaParameters: [
+              JavaParameter(
+                javaType: .int,
+                parameterName: loweredParam.cdeclParameters[0].parameterName!
+              )
+            ],
+            conversion: .call(function: "SwiftKit.toSwiftInt", withArena: false)
           )
 
         default:
@@ -252,18 +258,21 @@ struct JavaTranslation {
       if let javaType = JavaType(cType: cType) {
         return TranslatedResult(
           javaResultType: javaType,
-          conversion: .identity
+          outParameters: [],
+          conversion: .cast(javaType)
         )
       }
     }
 
     let swiftType = swiftResult.type
     switch swiftType {
-    case .metatype(let swiftType):
+    case .metatype(_):
       // Metatype are expressed as 'org.swift.swiftkit.SwiftAnyType'
+      let javaType = JavaType.class(package: "org.swift.swiftkit", name: "SwiftAnyType")
       return TranslatedResult(
-        javaResultType: JavaType.class(package: "org.swift.swiftkit", name: "SwiftAnyType"),
-        conversion: .call("SwiftAnyType")
+        javaResultType: javaType,
+        outParameters: [],
+        conversion: .construct(javaType)
       )
 
     case .nominal(let swiftNominalType):
@@ -278,6 +287,12 @@ struct JavaTranslation {
         case .string:
           // FIXME: Implement
           throw JavaTranslationError.unhandledType(swiftType)
+        case .int:
+          return TranslatedResult(
+            javaResultType: .int,
+            outParameters: [],
+            conversion: .cast(.int)
+          )
         default:
           throw JavaTranslationError.unhandledType(swiftType)
         }
@@ -288,35 +303,18 @@ struct JavaTranslation {
         throw JavaTranslationError.unhandledType(swiftType)
       }
 
+      let javaType: JavaType = .class(package: nil, name: swiftNominalType.nominalTypeDecl.name)
       return TranslatedResult(
-        javaResultType: .class(package: nil, name: swiftNominalType.nominalTypeDecl.name),
-        // Don't convert the memory segment to S
-        conversion:  .construct(swiftNominalType.nominalTypeDecl.name)
-      )
-
-      return translate(loweredResult: <#T##LoweredResult#>, swiftResult: <#T##SwiftResult#>)(
-        javaParameters: [
-          JavaParameter(
-            javaType: try translate(swiftType: swiftType),
-            parameterName: loweredParam.cdeclParameters[0].parameterName!
-          )
+        javaResultType: javaType,
+        outParameters: [
+          JavaParameter(javaType: javaType, parameterName: "_result")
         ],
-        conversion: .swiftValueSelfSegment
+        conversion: .constructSwiftValue(javaType)
       )
 
     case .tuple(let elements):
       // TODO: Implement.
       throw JavaTranslationError.unhandledType(swiftType)
-
-    case .function(let fn) where fn.parameters.isEmpty && fn.resultType.isVoid:
-      return TranslatedParameter(
-        javaParameters: [
-          JavaParameter(
-            javaType: JavaType.class(package: "java.lang", name: "Runnable"),
-            parameterName: loweredParam.cdeclParameters[0].parameterName!)
-        ],
-        conversion: .upcallStub
-      )
 
     case .optional, .function:
       throw JavaTranslationError.unhandledType(swiftType)
@@ -327,104 +325,36 @@ struct JavaTranslation {
   func translate(
     swiftType: SwiftType
   ) throws -> JavaType {
-    JavaType.class(package: nil, name: "")
+    guard let nominalName = swiftType.asNominalTypeDeclaration?.name else {
+      throw JavaTranslationError.unhandledType(swiftType)
+    }
+    return .class(package: nil, name: nominalName)
   }
 }
 
-protocol JavaLoweringGenerator {
-  var requiresArena: Bool { get }
-  func prepareParameter() -> String
-  func fixupResult() -> String
-}
-
+/// Describes how to convert values between Java types and FFM types.
 enum JavaConversionStep {
-
   // Pass through.
   case pass
 
   // 'value.$memorySegment()'
   case swiftValueSelfSegment
 
-  // Create a memory segment for indirect returning value.
-  case newMemorySegment(layout: String)
-
   // Make an upcall stub for a callbacks.
   case upcallStub
 
-  // `SwiftKit` should have a special method to lower the parameter.
-  case swiftkitBuiltin
+  // call specified function using the placeholder as arguments.
+  // If `withArena` is true, `$arena` argument is added.
+  case call(function: String, withArena: Bool)
 
-  // Temporarily stores the `step` in a variable, and explodes its components to
-  // a list of comma separated values.
-  indirect case explode(step: JavaConversionStep, tempName: String, fields: [String])
+  // Call '\(Type)(\(placeholder), $arena)'.
+  case constructSwiftValue(JavaType)
 
-  case construct(javaType: JavaType)
+  // Construct the type using the placeholder as arguments.
+  case construct(JavaType)
 
-  var requiresArena: Bool {
-    switch self {
-    case .identity, .swiftValueSelfSegment, .construct(javaType: <#T##JavaType#>):
-      false
-    case .newMemorySegment, .swiftkitBuiltin, .upcallStub:
-      true
-    case .explode(let step, _, _):
-      step.requiresArena
-    }
-  }
-
-  func printBefore(printer: inout CodePrinter, placeholder: String) {
-    switch self {
-    case .identity:
-      printer.print(placeholder, .continue)
-
-    case .swiftValueSelfSegment:
-      printer.print(placeholder, .continue)
-      printer.print(".$memorySegment()", .continue)
-
-    case .
-    }
-
-    switch self {
-    case .identity:
-      return ([], placeholder)
-    case .swiftValueSelfSegment:
-      return ([], "\(placeholder).$memorySegment()")
-    case .newMemorySegment(let layout):
-      return (
-        statements: ["$\(placeholder)_segment = arena.allocate(\(layout))"],
-        result: "$\(placeholder)_segment"
-      )
-    case .swiftkitBuiltin:
-      return ([], "SwiftKit.lowerParameter(\(placeholder))")
-
-    case .explode(let inner, let tempName, let components):
-      return (
-        statements: [
-          "var $\(tempName) = \(placeholder)"
-        ],
-        result: components.map({ "$\(tempName).\($0)" }).joined(separator: ", ")
-      )
-
-    case .upcallStub:
-      // TODO: Implement
-      return (
-        statements: [
-          """
-          $\(placeholder) = func = Linker.nativeLinker().upcallStub(
-              \(placeholder), FunctionDescriptor.ofVoid(), arena
-          )
-          """
-        ],
-        result: "$\(placeholder)"
-      )
-
-    case .constructSwiftValue(let type):
-      return ([
-        """
-        arena.allocate(\(type).$layout())
-        """
-      ], "new \(type)(\(placeholder))")
-    }
-  }
+  // Casting the placeholder to the certain type.
+  case cast(JavaType)
 }
 
 extension JavaType {
@@ -435,6 +365,7 @@ extension JavaType {
     case .integral(.signed(bits: 16)): self = .short
     case .integral(.signed(bits: 32)): self = .int
     case .integral(.unsigned(bits: 16)): self = .char
+    case .integral(.ptrdiff_t): self = .int
     case .floating(.float): self = .float
     case .floating(.double): self = .double
     case .void: self = .void

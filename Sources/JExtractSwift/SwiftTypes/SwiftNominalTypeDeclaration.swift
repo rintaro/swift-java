@@ -95,6 +95,15 @@ class SwiftNominalTypeDeclaration {
       return name
     }
   }
+
+  var isReferenceType: Bool {
+    switch kind {
+    case .actor, .class:
+      return true
+    case .enum, .struct, .protocol:
+      return false
+    }
+  }
 }
 
 extension SwiftNominalTypeDeclaration: Equatable {

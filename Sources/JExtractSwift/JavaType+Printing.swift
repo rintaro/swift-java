@@ -24,7 +24,7 @@ extension JavaType {
   ///
   /// Pass the prior to `invoke`, and directly render the latter in the Java wrapper downcall function body.
   func prepareClosureDowncallHandle(decl: ImportedFunc, parameter: String) -> String {
-    let varNameBase = "\(decl.baseIdentifier)_\(parameter)"
+    let varNameBase = "\(decl.name)_\(parameter)"
     let handle = "\(varNameBase)_handle$"
     let desc = "\(varNameBase)_desc$"
 

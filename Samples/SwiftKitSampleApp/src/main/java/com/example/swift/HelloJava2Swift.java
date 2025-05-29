@@ -25,6 +25,7 @@ import java.lang.foreign.Arena;
 import java.lang.foreign.MemoryLayout;
 import java.lang.foreign.MemorySegment;
 import java.lang.foreign.ValueLayout;
+import java.util.concurrent.Callable;
 
 public class HelloJava2Swift {
 
@@ -52,7 +53,7 @@ public class HelloJava2Swift {
 
         // Example of using an arena; MyClass.deinit is run at end of scope
         try (var arena = SwiftArena.ofConfined()) {
-            MySwiftClass obj = new MySwiftClass(arena, 2222, 7777);
+            MySwiftClass obj = new MySwiftClass(2222, 7777, arena);
 
             // just checking retains/releases work
             SwiftKit.trace("retainCount = " + SwiftKit.retainCount(obj));
@@ -67,7 +68,7 @@ public class HelloJava2Swift {
             obj.voidMethod();
             obj.takeIntMethod(42);
 
-            MySwiftStruct swiftValue = new MySwiftStruct(arena, 2222, 1111);
+            MySwiftStruct swiftValue = new MySwiftStruct(2222, 1111, arena);
             SwiftKit.trace("swiftValue.capacity = " + swiftValue.getCapacity());
         }
 
@@ -78,89 +79,4 @@ public class HelloJava2Swift {
 
     public static native long jniGetInt();
 
-}
-
-/*package*/ abstract class SwiftVal {
-    protected final MemorySegment selfSegment;
-    /*package*/ SwiftVal(MemorySegment segment, SwiftArena arena) {
-        this.selfSegment = segment;
-        arena.register(this);
-    }
-}
-
-public class MyClass extends SwiftVal {
-    MyClass(MemorySegment segment, SwiftArena arena) {
-        super(segment, arena);
-    }
-
-    private static class retTuple {
-        int tt(Arena a) {
-            ValueLayout.JAVA_INT
-        }
-        static Result invoke(SwiftArena arena) {
-            try {
-                MemorySegment result_0 = arena.allocate(MyClass.$layout());
-                MemorySegment result_1 = arena.allocate(SwiftValueLayout.SWIFT_INT);
-
-                $mh.invokeExact(x, y, result_0, result_1);
-
-                int result1_val = result_1.get(SwiftValueLayout.SWIFT_INT32, 0);
-                SwiftKit.getSwiftInt(result_1, 0);
-
-                return new Result(new MyClass(result_0, arena), result1_val);
-            } catch (Exception e) {
-                throw new AssertionError("Should be unreachable");
-            }
-        }
-
-    }
-
-    retTuple.Result retTuple(SwiftArena arena) {
-        MemorySegment result_0 = arena.allocate(MyClass.$layout());
-        MemorySegment result_1_0 = arena.allocate(SwiftValueLayout.SWIFT_INT);
-        MemorySegment result_1_1 = arena.allocate(SwiftValueLayout.SWIFT_INT);
-
-    }
-
-    static class Construct {
-        static MemorySegment invoke(int x, int y, SwiftArena arena) {
-            try {
-                MemorySegment result = allocator.allocate(MyClass.$layout());
-
-                $mh.invokeExact(x, y, result);
-                // if this is a constructor:
-                return result;
-                // else
-                return new MyClass(result, arena);
-            } catch (Exception e) {
-                throw new AssertionError("Should be unreachable");
-            }
-        }
-    }
-
-    public MyClass(int x, int y, SwiftArena arena) {
-        super(Construct.invoke(x, y, arena), arena);
-    }
-
-    public MyClass(int x, int y) {
-        this(x, y, SwiftArena.ofAuto());
-    }
-
-    int getCount() {
-        return Myclas_getCount.invoke(selfSegment);
-    }
-
-    /// foo(arg: Int) -> (Int, Int)
-    /// segment = allocate(Layout.ofInt)
-    /// segment = allocate(Layout.ofInt)
-    /// void foo(int arg0, arg1_1)
-
-    MyClass getChild(MyClass of) {
-        String str = "foobar";
-        Integer foo = 123;
-        segment = arena.allocate();
-        handle.invoke(of.$selfSegment(), segment);
-        return new MyClass(segment);
-        return MyClass_getChild.invoke(x, y, this);
-    }
 }
